@@ -344,7 +344,7 @@ ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
 
 ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
   add DATA METRIC FUNCTION SNOWFLAKE.CORE.ACCEPTED_VALUES ON (age, age -> age > 0)
-  expectation age_invalue (value > 0);
+  expectation age_invalid (value > 0);
 
 -- ==========================================
 -- SILVER_CUSTOMER_ORDERS DMFs
