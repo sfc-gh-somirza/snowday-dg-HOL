@@ -316,6 +316,91 @@ GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK(TABLE(VARCHAR), TABLE(VARCHA
 
 
 /*----------------------------------------------------------------------------------
+ V A L I D A T E   D M F s   -   M A N U A L   C H E C K S
+ 
+ Run these queries to manually verify the DMF results before scheduling.
+ These help validate that the data quality checks are working as expected.
+----------------------------------------------------------------------------------*/
+
+-- ==========================================
+-- Check System DMFs on SILVER_CUSTOMER
+-- ==========================================
+
+-- Check row count (Volume)
+SELECT SNOWFLAKE.CORE.ROW_COUNT(
+    SELECT * FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
+) AS SILVER_CUSTOMER_ROW_COUNT;
+
+-- Check null count on ID column
+SELECT SNOWFLAKE.CORE.NULL_COUNT(
+    SELECT ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
+) AS SILVER_CUSTOMER_ID_NULL_COUNT;
+
+-- Check duplicate emails
+SELECT SNOWFLAKE.CORE.DUPLICATE_COUNT(
+    SELECT EMAIL FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
+) AS SILVER_CUSTOMER_EMAIL_DUPLICATES;
+
+
+-- ==========================================
+-- Check System DMFs on SILVER_CUSTOMER_ORDERS
+-- ==========================================
+
+-- Check row count (Volume)
+SELECT SNOWFLAKE.CORE.ROW_COUNT(
+    SELECT * FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
+) AS SILVER_CUSTOMER_ORDERS_ROW_COUNT;
+
+-- Check null count on ORDER_ID column
+SELECT SNOWFLAKE.CORE.NULL_COUNT(
+    SELECT ORDER_ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
+) AS SILVER_CUSTOMER_ORDERS_ORDERID_NULL_COUNT;
+
+
+-- ==========================================
+-- Check Custom DMFs
+-- ==========================================
+
+-- Check referential integrity: CUSTOMER_IDs in SILVER_CUSTOMER_ORDERS should exist in SILVER_CUSTOMER
+SELECT HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK(
+    SELECT CUSTOMER_ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS,
+    SELECT ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
+) AS ORPHANED_CUSTOMER_IDS;
+
+-- Check volume consistency: Silver orders should match Bronze orders
+SELECT HRZN_DB.HRZN_SCH.VOLUME_CHECK(
+    SELECT CUSTOMER_ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS,
+    SELECT CUSTOMER_ID FROM HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS
+) AS SILVER_VS_BRONZE_ORDERS_DIFF;
+
+-- Check volume consistency: Silver customer should match Bronze customer
+SELECT HRZN_DB.HRZN_SCH.VOLUME_CHECK(
+    SELECT EMAIL FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER,
+    SELECT EMAIL FROM HRZN_DB.HRZN_SCH.CUSTOMER
+) AS SILVER_VS_BRONZE_CUSTOMER_DIFF;
+
+
+-- ==========================================
+-- Check System DMFs on GOLD_CUSTOMER_ORDER_SUMMARY
+-- ==========================================
+
+-- Check row count (Volume)
+SELECT SNOWFLAKE.CORE.ROW_COUNT(
+    SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
+) AS GOLD_SUMMARY_ROW_COUNT;
+
+-- Check null count on ID column
+SELECT SNOWFLAKE.CORE.NULL_COUNT(
+    SELECT ID FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
+) AS GOLD_SUMMARY_ID_NULL_COUNT;
+
+-- Check freshness (seconds since last update)
+SELECT SNOWFLAKE.CORE.FRESHNESS(
+    SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
+) AS GOLD_SUMMARY_FRESHNESS_SECONDS;
+
+
+/*----------------------------------------------------------------------------------
  A P P L Y   D M F s   W I T H   E X P E C T A T I O N S
  
  Apply Data Metric Functions with expectations to monitor data quality
@@ -452,6 +537,20 @@ SELECT 'GOLD_CUSTOMER_ORDER_SUMMARY', COUNT(*) FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOM
 SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
 ORDER BY TOTAL_REVENUE DESC NULLS LAST
 LIMIT 10;
+
+
+-- View DMF results from the monitoring view
+SELECT 
+    change_commit_time,
+    measurement_time,
+    table_schema,
+    table_name,
+    metric_name,
+    value
+FROM SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS
+WHERE table_database = 'HRZN_DB'
+    AND table_name IN ('SILVER_CUSTOMER', 'SILVER_CUSTOMER_ORDERS', 'GOLD_CUSTOMER_ORDER_SUMMARY')
+ORDER BY change_commit_time DESC;
 
 
 /**
