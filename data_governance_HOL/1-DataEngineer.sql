@@ -182,16 +182,6 @@ USE ROLE HRZN_DATA_ANALYST;
 SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
-
-
-
-
-
-
-
-
-
-
 /*************************************************/
 /*************************************************/
 /* D A T A      E N G I N E E R      R O L E */
@@ -222,11 +212,8 @@ Step  - Load the Data into the table
 
 /*----------------------------------------------------------------------------------
 Step - Medallion Architecture (Bronze -> Silver -> Gold)
-
- This section implements a medallion architecture on top of the existing bronze
- tables (CUSTOMER and CUSTOMER_ORDERS). The architecture consists of:
  
- - Bronze Layer: Raw data tables (CUSTOMER, CUSTOMER_ORDERS) - already exist
+ - Bronze Layer: Raw data tables (CUSTOMER, CUSTOMER_ORDERS)
  - Silver Layer: Cleansed/validated copies of bronze tables
  - Gold Layer: Business-level aggregations joining silver tables
  
@@ -239,7 +226,6 @@ USE DATABASE HRZN_DB;
 USE SCHEMA HRZN_SCH;
 USE WAREHOUSE HRZN_WH;
 
-
 /*----------------------------------------------------------------------------------
  S I L V E R   L A Y E R
  
@@ -248,13 +234,18 @@ USE WAREHOUSE HRZN_WH;
  and transformations as needed.
 ----------------------------------------------------------------------------------*/
 
--- Create Silver Customer table as a copy of Bronze
-CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER AS
-SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER;
-
--- Create Silver Customer Orders table as a copy of Bronze
+-- Create Silver Customer Orders table
 CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS AS
-SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS;
+select *, 
+date_trunc('month', order_ts) as order_month
+from hrzn_db.hrzn_sch.customer_orders;
+
+-- Create Silver Customer table
+CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER AS
+select * exclude birthdate
+,to_date(birthdate, 'MM/DD/YY') as birthdate
+,datediff('year', to_date(birthdate, 'MM/DD/YY'), current_date()) as age
+from hrzn_db.hrzn_sch.customer;
 
 
 /*----------------------------------------------------------------------------------
@@ -316,97 +307,14 @@ GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK(TABLE(VARCHAR), TABLE(VARCHA
 
 
 /*----------------------------------------------------------------------------------
- V A L I D A T E   D M F s   -   M A N U A L   C H E C K S
- 
- Run these queries to manually verify the DMF results before scheduling.
- These help validate that the data quality checks are working as expected.
-----------------------------------------------------------------------------------*/
-
--- ==========================================
--- Check System DMFs on SILVER_CUSTOMER
--- ==========================================
-
--- Check row count (Volume)
-SELECT SNOWFLAKE.CORE.ROW_COUNT(
-    SELECT * FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
-) AS SILVER_CUSTOMER_ROW_COUNT;
-
--- Check null count on ID column
-SELECT SNOWFLAKE.CORE.NULL_COUNT(
-    SELECT ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
-) AS SILVER_CUSTOMER_ID_NULL_COUNT;
-
--- Check duplicate emails
-SELECT SNOWFLAKE.CORE.DUPLICATE_COUNT(
-    SELECT EMAIL FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
-) AS SILVER_CUSTOMER_EMAIL_DUPLICATES;
-
-
--- ==========================================
--- Check System DMFs on SILVER_CUSTOMER_ORDERS
--- ==========================================
-
--- Check row count (Volume)
-SELECT SNOWFLAKE.CORE.ROW_COUNT(
-    SELECT * FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
-) AS SILVER_CUSTOMER_ORDERS_ROW_COUNT;
-
--- Check null count on ORDER_ID column
-SELECT SNOWFLAKE.CORE.NULL_COUNT(
-    SELECT ORDER_ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
-) AS SILVER_CUSTOMER_ORDERS_ORDERID_NULL_COUNT;
-
-
--- ==========================================
--- Check Custom DMFs
--- ==========================================
-
--- Check referential integrity: CUSTOMER_IDs in SILVER_CUSTOMER_ORDERS should exist in SILVER_CUSTOMER
-SELECT HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK(
-    SELECT CUSTOMER_ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS,
-    SELECT ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
-) AS ORPHANED_CUSTOMER_IDS;
-
--- Check volume consistency: Silver orders should match Bronze orders
-SELECT HRZN_DB.HRZN_SCH.VOLUME_CHECK(
-    SELECT CUSTOMER_ID FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS,
-    SELECT CUSTOMER_ID FROM HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS
-) AS SILVER_VS_BRONZE_ORDERS_DIFF;
-
--- Check volume consistency: Silver customer should match Bronze customer
-SELECT HRZN_DB.HRZN_SCH.VOLUME_CHECK(
-    SELECT EMAIL FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER,
-    SELECT EMAIL FROM HRZN_DB.HRZN_SCH.CUSTOMER
-) AS SILVER_VS_BRONZE_CUSTOMER_DIFF;
-
-
--- ==========================================
--- Check System DMFs on GOLD_CUSTOMER_ORDER_SUMMARY
--- ==========================================
-
--- Check row count (Volume)
-SELECT SNOWFLAKE.CORE.ROW_COUNT(
-    SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
-) AS GOLD_SUMMARY_ROW_COUNT;
-
--- Check null count on ID column
-SELECT SNOWFLAKE.CORE.NULL_COUNT(
-    SELECT ID FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
-) AS GOLD_SUMMARY_ID_NULL_COUNT;
-
--- Check freshness (seconds since last update)
-SELECT SNOWFLAKE.CORE.FRESHNESS(
-    SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
-) AS GOLD_SUMMARY_FRESHNESS_SECONDS;
-
-
-/*----------------------------------------------------------------------------------
  A P P L Y   D M F s   W I T H   E X P E C T A T I O N S
  
  Apply Data Metric Functions with expectations to monitor data quality
  across all medallion layers. Expectations define thresholds that trigger
  alerts when violated.
 ----------------------------------------------------------------------------------*/
+
+-- BRONZE DMFS
 
 -- ==========================================
 -- SILVER_CUSTOMER DMFs
@@ -425,10 +333,18 @@ ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ID) 
     Expectation ID_Not_Null (value = 0);
 
--- Uniqueness check: Email should be unique
+-- Uniqueness check: Email, ID should be unique; age should >0
 ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
-    ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (EMAIL);
+    add DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (EMAIL)
+    Expectation email_dupes (value = 0);
 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
+    ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (ID) 
+    Expectation id_dupes (value = 0);
+
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
+  add DATA METRIC FUNCTION SNOWFLAKE.CORE.ACCEPTED_VALUES ON (age, age -> age > 0)
+  expectation age_invalue (value > 0);
 
 -- ==========================================
 -- SILVER_CUSTOMER_ORDERS DMFs
@@ -442,10 +358,15 @@ ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 0);
 
--- Accuracy check: ORDER_ID should never be null
+-- Accuracy check: ORDER_ID should never be null;
 ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ORDER_ID) 
     Expectation OrderID_Not_Null (value = 0);
+
+-- Uniqueness check: order_ID should be unique; 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
+    ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (ORDER_ID) 
+    Expectation OrderID_dupes (value = 0);
 
 -- Referential integrity check: All CUSTOMER_IDs should exist in SILVER_CUSTOMER
 ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
@@ -524,14 +445,6 @@ GRANT ALL ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_DAT
 GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_DATA_USER;
 GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_IT_ADMIN;
 GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_DATA_ANALYST;
-
-
--- Query to verify medallion tables were created successfully
-SELECT 'SILVER_CUSTOMER' AS TABLE_NAME, COUNT(*) AS ROW_COUNT FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER
-UNION ALL
-SELECT 'SILVER_CUSTOMER_ORDERS', COUNT(*) FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
-UNION ALL
-SELECT 'GOLD_CUSTOMER_ORDER_SUMMARY', COUNT(*) FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY;
 
 -- Sample from Gold table to verify join worked correctly
 SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
