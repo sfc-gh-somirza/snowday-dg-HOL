@@ -9,9 +9,7 @@ Getting Started with Snowflake
 2. Using Persisted Query Results
 3. Basic Data Transformation Techniques
 4. Data Recovery with UNDROP
-5. Resource Monitors
-6. Budgets
-7. Universal Search
+5. Universal Search
 
 ****************************************************************************************************/
 
@@ -42,16 +40,12 @@ SET VIEW_ORDERS_ANALYTICS = $SCH_ANALYTICS || '.ORDERS_V';
 
 -- User-specific objects created in this vignette
 SET MY_WH = 'MY_WH_' || $USER_SUFFIX;
-SET MY_RESOURCE_MONITOR = 'MY_RESOURCE_MONITOR_' || $USER_SUFFIX;
-SET MY_BUDGET = 'MY_BUDGET_' || $USER_SUFFIX;
 
 -- Display variables for verification
 SELECT 
     $USER_SUFFIX AS USER_SUFFIX,
     $DB_NAME AS DATABASE_NAME,
-    $MY_WH AS MY_WAREHOUSE,
-    $MY_RESOURCE_MONITOR AS MY_RESOURCE_MONITOR,
-    $MY_BUDGET AS MY_BUDGET;
+    $MY_WH AS MY_WAREHOUSE;
 
 
 -- Before we start, run this query to set the session query tag.
@@ -355,113 +349,7 @@ SELECT * from identifier($TBL_TRUCK_DETAILS);
 -- Now drop the real truck_dev table
 DROP TABLE identifier($TBL_TRUCK_DEV);
 
-/*  5. Resource Monitors
-    ***********************************************************
-    User-Guide:                                   
-    https://docs.snowflake.com/en/user-guide/resource-monitors
-    ***********************************************************
-
-    Monitoring compute usage and spend is critical to any cloud-based workflow. Snowflake provides a simple 
-    and straightforward way to track warehouse credit usage with Resource Monitors.
-
-    With Resource Monitors you define credit quotas and then trigger certain actions on 
-    associated warehouses upon reaching defined usage thresholds.
-
-    Actions the resource monitor can take:
-    -NOTIFY: Sends an email notification to specified users or roles.
-    -SUSPEND: Suspends the associated warehouses when a threshold is reached.
-              NOTE: Running queries are allowed to complete. 
-    -SUSPEND_IMMEDIATE: Suspends the associated warehouses when a threshold is reached and
-                        cancels all running queries.
-
-    Now, we'll create a Resource Monitor for our warehouse
-
-    Let's quickly set our account level role in Snowsight to accountadmin;
-    To do so:
-    - Click the User Icon in the bottom left of the screen
-    - Hover over 'Switch Role'
-    - Select 'ACCOUNTADMIN' in the role list panel
-
-   Next we will use the accountadmin role in our Worksheet
-*/
-USE ROLE accountadmin;
-
--- Run the query below to create the resource monitor via SQL
-CREATE OR REPLACE RESOURCE MONITOR identifier($MY_RESOURCE_MONITOR)
-    WITH CREDIT_QUOTA = 100
-    FREQUENCY = MONTHLY -- Can also be DAILY, WEEKLY, YEARLY, or NEVER (for a one-time quota)
-    START_TIMESTAMP = IMMEDIATELY
-    TRIGGERS ON 75 PERCENT DO NOTIFY
-             ON 90 PERCENT DO SUSPEND
-             ON 100 PERCENT DO SUSPEND_IMMEDIATE;
-
--- With the Resource Monitor created, apply it to our warehouse
-SET ALTER_SQL = 'ALTER WAREHOUSE ' || $MY_WH || ' SET RESOURCE_MONITOR = ' || $MY_RESOURCE_MONITOR;
-EXECUTE IMMEDIATE $ALTER_SQL;
-
-/*  6. Budgets
-    ****************************************************
-      User-Guide:                                   
-      https://docs.snowflake.com/en/user-guide/budgets 
-    ****************************************************
-      
-    In the previous step we configured a Resource Monitor that allows for monitoring
-    credit usage for Warehouses. In this step we will create a Budget for a more holistic 
-    and flexible approach to managing costs in Snowflake. 
-    
-    While Resource Monitors are tied specifically to warehouse and compute usage, Budgets can be used 
-    to track costs and impose spending limits on any Snowflake object or service and notify users 
-    when the dollar amount reaches a specified threshold.
-*/
-
--- Let's first create our budget
-SET BUDGET_SQL = 'CREATE OR REPLACE SNOWFLAKE.CORE.BUDGET ' || $MY_BUDGET || '() COMMENT = ''My Tasty Bytes Budget''';
-EXECUTE IMMEDIATE $BUDGET_SQL;
-
-/*
-    Before we can configure our Budget we need to verify an email address on the account.
-
-    To verify your email address:
-    - Click the User Icon in the bottom left of the screen
-    - Click Settings 
-    - Enter your email address in the email field
-    - Click 'Save'
-    - Check your email and follow instructions to verify email
-        NOTE: if you don't receive an email after a few minutes, click 'Resend Verification'
-     
-    With our new budget now in place, our email verified and our account-level role set to accountadmin, 
-    lets head over to the Budgets page in Snowsight to add some resources to our Budget.
-
-    To get to the Budgets page in Snowsight:
-    - Click the Admin button on the Navigation Menu
-    - Click the first item 'Cost Management'
-    - Click the 'Budgets' tab
-    
-    If prompted to select a warehouse, select your user-specific warehouse, otherwise, ensure your warehouse is set 
-    from the warehouse panel at the top right of the screen.
-    
-    On the budgets page we see metrics about our spend for the current period.
-    In the middle of the screen shows a graph of the current spend with forecasted spend.
-    At the bottom of the screen we see our budget we created earlier. Click
-    that to view the Budget page
-    
-    Clicking the '<- Budget Details' at the top right of the screen reveals the
-    Budget Details panel. Here we can view information about our budget and all 
-    of the resources attached to it. We see there are no resources monitored so let's add some now.
-    Click the 'Edit' button to open the Edit Budget panel;
-    
-    - Keep budget name the same
-    - Set the spending limit to 100
-    - Enter the email you verified earlier
-    - Click the '+ Tags & Resources' button to add a couple of resources
-    - Expand Databases, then your TB_101_<username> database, then check the box next to the ANALYTICS schema
-    - Scroll down to and expand 'Warehouses'
-    - Check the box for your user-specific warehouse
-    - Click 'Done'
-    - Back in the Edit Budget menu, click 'Save Changes'
-*/
-
-/*  7. Universal Search
+/*  5. Universal Search
     **************************************************************************
       User-Guide                                                             
       https://docs.snowflake.com/en/user-guide/ui-snowsight-universal-search  
@@ -490,7 +378,6 @@ EXECUTE IMMEDIATE $BUDGET_SQL;
 --RESET--
 -------------------------------------------------------------------------
 -- Drop created objects
-DROP RESOURCE MONITOR IF EXISTS identifier($MY_RESOURCE_MONITOR);
 DROP TABLE IF EXISTS identifier($TBL_TRUCK_DEV);
 
 -- Reset truck details
@@ -498,10 +385,6 @@ SET RESET_SQL = 'CREATE OR REPLACE TABLE ' || $TBL_TRUCK_DETAILS || ' AS SELECT 
 EXECUTE IMMEDIATE $RESET_SQL;
 
 DROP WAREHOUSE IF EXISTS identifier($MY_WH);
-
--- Drop budget
-SET DROP_SQL = 'DROP SNOWFLAKE.CORE.BUDGET IF EXISTS ' || $MY_BUDGET;
-EXECUTE IMMEDIATE $DROP_SQL;
 
 -- Unset Query Tag
 ALTER SESSION UNSET query_tag;
