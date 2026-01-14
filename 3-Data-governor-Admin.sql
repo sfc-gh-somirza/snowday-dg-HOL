@@ -16,6 +16,37 @@ Date(yyyy-mm-dd)    Author              Comments
 ------------------- ------------------- ------------------------------------------------------------
 Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
+
+/*----------------------------------------------------------------------------------
+ U S E R   S U F F I X   V A R I A B L E S
+ 
+ All objects in this lab are suffixed with the current user's name to allow
+ multiple users to run the lab concurrently without naming conflicts.
+----------------------------------------------------------------------------------*/
+
+-- Set the user suffix (must match 0_setup.sql)
+SET USER_SUFFIX = CURRENT_USER();
+
+-- Define role names with user suffix
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
+
+-- Define warehouse name with user suffix
+SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+
+-- Define database and schema names with user suffix
+SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+SET SCH_NAME = 'HRZN_SCH';
+
+-- Define fully qualified schema path
+SET FQ_SCH = $DB_NAME || '.' || $SCH_NAME;
+
+-- Define table names (fully qualified)
+SET TBL_CUSTOMER = $FQ_SCH || '.CUSTOMER';
+
+-- Define pattern for ILIKE searches (matches user's objects)
+SET OBJ_PATTERN = $DB_NAME || '%';
+
+
 /*************************************************/
 /*************************************************/
 /* D A T A      G O V E R N O R   A D M I N      R O L E */
@@ -39,10 +70,10 @@ Step - Access History (Read and Writes)
  Note: Access History latency is up to 3 hours.  So, some of the queries below may not have results.
 ---------------------------------------------------------------------------------*/
 
- USE ROLE HRZN_IT_ADMIN;
- USE DATABASE HRZN_DB;
- USE SCHEMA HRZN_SCH;
- USE WAREHOUSE HRZN_WH;
+USE ROLE identifier($ROLE_IT_ADMIN);
+USE DATABASE identifier($DB_NAME);
+USE SCHEMA identifier($FQ_SCH);
+USE WAREHOUSE identifier($WH_NAME);
 
 
 --> how many queries have accessed each of our Raw layer tables directly?
@@ -51,7 +82,7 @@ SELECT
     COUNT(DISTINCT query_id) AS number_of_queries
 FROM snowflake.account_usage.access_history,
 LATERAL FLATTEN (input => direct_objects_accessed)
-WHERE object_name ILIKE 'HRZN%'
+WHERE object_name ILIKE $OBJ_PATTERN
 GROUP BY object_name
 ORDER BY number_of_queries DESC;
 
@@ -67,7 +98,7 @@ SELECT
     MAX(query_start_time) AS last_query_start_time
 FROM snowflake.account_usage.access_history,
 LATERAL FLATTEN (input => direct_objects_accessed)
-WHERE object_name ILIKE 'HRZN%'
+WHERE object_name ILIKE $OBJ_PATTERN
 GROUP BY object_name, query_type
 ORDER BY object_name, number_of_queries DESC;
 
@@ -81,7 +112,7 @@ JOIN snowflake.account_usage.access_history AS ah
 ON qh.query_id = ah.query_id,
     LATERAL FLATTEN(input => ah.base_objects_accessed)
 WHERE query_type = 'SELECT' AND
-    value:objectName = 'HRZN_DB.HRZN_SCH.CUSTOMER' AND
+    value:objectName = $TBL_CUSTOMER AND
     start_time > dateadd(day, -90, current_date());
 
 --> last few "write" queries
@@ -94,7 +125,7 @@ JOIN snowflake.account_usage.access_history AS ah
 ON qh.query_id = ah.query_id,
     LATERAL FLATTEN(input => ah.base_objects_accessed)
 WHERE query_type != 'SELECT' AND
-    value:objectName = 'HRZN_DB.HRZN_SCH.CUSTOMER' AND
+    value:objectName = $TBL_CUSTOMER AND
     start_time > dateadd(day, -90, current_date());
 
 
@@ -110,6 +141,7 @@ warehouse_size,
 execution_status,
 round(total_elapsed_time/1000,3) elapsed_sec
 FROM snowflake.account_usage.query_history
+WHERE database_name = $DB_NAME
 ORDER BY total_elapsed_time desc
 LIMIT 10;
 
@@ -122,7 +154,7 @@ SELECT
 FROM
   SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY q 
 WHERE
-  q.QUERY_TEXT ILIKE '%HRZN_DB.HRZN_SCH.CUSTOMER%'
+  q.QUERY_TEXT ILIKE '%' || $TBL_CUSTOMER || '%'
 ORDER BY
   q.START_TIME DESC;
 
@@ -153,7 +185,7 @@ FROM
         outer => true
       ) directSources
     union
-// 2
+-- 2
     select
       baseSources.value: "objectId" as source_object_id,
       baseSources.value: "objectName"::varchar as source_object_name,
@@ -176,7 +208,7 @@ FROM
       ) baseSources
 ) col_lin
    WHERE
-       (SOURCE_OBJECT_NAME = 'HRZN_DB.HRZN_SCH.CUSTOMER' OR TARGET_OBJECT_NAME='HRZN_DB.HRZN_SCH.CUSTOMER')
+       (SOURCE_OBJECT_NAME = $TBL_CUSTOMER OR TARGET_OBJECT_NAME = $TBL_CUSTOMER)
     AND
         (SOURCE_COLUMN_NAME IN (
                 SELECT
@@ -186,8 +218,8 @@ FROM
                     SELECT
                         *
                     FROM TABLE(
-                      HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS(
-                        'HRZN_DB.HRZN_SCH.CUSTOMER',
+                      identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+                        $TBL_CUSTOMER,
                         'table'
                       )
                     )
@@ -203,8 +235,8 @@ FROM
                     SELECT
                         *
                     FROM TABLE(
-                      HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS(
-                        'HRZN_DB.HRZN_SCH.CUSTOMER',
+                      identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+                        $TBL_CUSTOMER,
                         'table'
                       )
                     )
@@ -220,9 +252,9 @@ SELECT
     COUNT(DISTINCT query_id) AS number_of_queries
 FROM snowflake.account_usage.access_history,
 LATERAL FLATTEN (input => base_objects_accessed) base,
-LATERAL FLATTEN (input => direct_objects_accessed) direct,
+LATERAL FLATTEN (input => direct_objects_accessed) direct
 WHERE 1=1
-    AND object_name ILIKE 'HRZN%'
+    AND object_name ILIKE $OBJ_PATTERN
     AND object_name <> direct.value:"objectName"::STRING -- base object is not direct object
 GROUP BY object_name
 ORDER BY number_of_queries DESC;
@@ -233,4 +265,4 @@ ORDER BY number_of_queries DESC;
 /**
   Direct Objects Accessed: Data objects directly named in the query explicitly.
   Base Objects Accessed: Base data objects required to execute a query.
-**/ 
+**/

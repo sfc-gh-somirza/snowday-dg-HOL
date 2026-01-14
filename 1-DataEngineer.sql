@@ -17,26 +17,64 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
 
 /*----------------------------------------------------------------------------------
-Snowflake’s approach to access control combines aspects from both of the following models:
-  • Discretionary Access Control (DAC): Each object has an owner, who can in turn grant access to that object.
-  • Role-based Access Control (RBAC): Access privileges are assigned to roles, which are in turn assigned to users.
+Snowflake's approach to access control combines aspects from both of the following models:
+  * Discretionary Access Control (DAC): Each object has an owner, who can in turn grant access to that object.
+  * Role-based Access Control (RBAC): Access privileges are assigned to roles, which are in turn assigned to users.
 
 The key concepts to understanding access control in Snowflake are:
-  • Securable object: An entity to which access can be granted. Unless allowed by a grant, access is denied.
-  • Role: An entity to which privileges can be granted. Roles are in turn assigned to users. Note that roles can also be assigned to other roles, creating a role hierarchy.
-  • Privilege: A defined level of access to an object. Multiple distinct privileges may be used to control the granularity of access granted.
-  • User: A user identity recognized by Snowflake, whether associated with a person or program.
+  * Securable object: An entity to which access can be granted. Unless allowed by a grant, access is denied.
+  * Role: An entity to which privileges can be granted. Roles are in turn assigned to users. Note that roles can also be assigned to other roles, creating a role hierarchy.
+  * Privilege: A defined level of access to an object. Multiple distinct privileges may be used to control the granularity of access granted.
+  * User: A user identity recognized by Snowflake, whether associated with a person or program.
 
   
 In Summary:
-  • In Snowflake, a Role is a container for Privileges to a Securable Object.
-  • Privileges can be granted Roles
-  • Roles can be granted to Users
-  • Roles can be granted to other Roles (which inherit that Roles Privileges)
-  • When Users choose a Role, they inherit all the Privileges of the Roles in the 
+  * In Snowflake, a Role is a container for Privileges to a Securable Object.
+  * Privileges can be granted Roles
+  * Roles can be granted to Users
+  * Roles can be granted to other Roles (which inherit that Roles Privileges)
+  * When Users choose a Role, they inherit all the Privileges of the Roles in the 
     hierarchy.
 ----------------------------------------------------------------------------------*/
 
+
+/*----------------------------------------------------------------------------------
+ U S E R   S U F F I X   V A R I A B L E S
+ 
+ All objects in this lab are suffixed with the current user's name to allow
+ multiple users to run the lab concurrently without naming conflicts.
+----------------------------------------------------------------------------------*/
+
+-- Set the user suffix (must match 0_setup.sql)
+SET USER_SUFFIX = CURRENT_USER();
+
+-- Define role names with user suffix
+SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER_' || $USER_SUFFIX;
+SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR_' || $USER_SUFFIX;
+SET ROLE_USER = 'HRZN_DATA_USER_' || $USER_SUFFIX;
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
+SET ROLE_ANALYST = 'HRZN_DATA_ANALYST_' || $USER_SUFFIX;
+
+-- Define warehouse name with user suffix
+SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+
+-- Define database and schema names with user suffix
+SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+SET SCH_NAME = 'HRZN_SCH';
+
+-- Define fully qualified schema path
+SET FQ_SCH = $DB_NAME || '.' || $SCH_NAME;
+
+-- Define table names (fully qualified)
+SET TBL_CUSTOMER = $FQ_SCH || '.CUSTOMER';
+SET TBL_CUSTOMER_ORDERS = $FQ_SCH || '.CUSTOMER_ORDERS';
+SET TBL_SILVER_CUSTOMER = $FQ_SCH || '.SILVER_CUSTOMER';
+SET TBL_SILVER_CUSTOMER_ORDERS = $FQ_SCH || '.SILVER_CUSTOMER_ORDERS';
+SET TBL_GOLD_CUSTOMER_ORDER_SUMMARY = $FQ_SCH || '.GOLD_CUSTOMER_ORDER_SUMMARY';
+
+-- Define DMF names (fully qualified)
+SET DMF_REFERENTIAL_CHECK = $FQ_SCH || '.REFERENTIAL_CHECK';
+SET DMF_VOLUME_CHECK = $FQ_SCH || '.VOLUME_CHECK';
 
 
 
@@ -52,10 +90,10 @@ Step - System Defined Roles and Privileges
 Let's first take a look at the Snowflake System Defined Roles and their privileges.
 ----------------------------------------------------------------------------------*/
 
-USE ROLE HRZN_DATA_ENGINEER;
-USE WAREHOUSE HRZN_WH;
-USE DATABASE HRZN_DB;
-USE SCHEMA HRZN_SCH;
+USE ROLE identifier($ROLE_ENGINEER);
+USE WAREHOUSE identifier($WH_NAME);
+USE DATABASE identifier($DB_NAME);
+USE SCHEMA identifier($FQ_SCH);
 
 
 --Let's take a look at the Roles currently in our account
@@ -124,7 +162,7 @@ Step - Role Creation, GRANTS and SQL Variables
 -- let's use the Useradmin Role to create a Data Analyst Role
 USE ROLE USERADMIN;
 
-CREATE OR REPLACE ROLE HRZN_DATA_ANALYST
+CREATE OR REPLACE ROLE identifier($ROLE_ANALYST)
     COMMENT = 'Analyst Role';
 
 
@@ -132,25 +170,22 @@ CREATE OR REPLACE ROLE HRZN_DATA_ANALYST
 USE ROLE SECURITYADMIN;
 
 -- first we will grant ALL privileges on the Development Warehouse to our Data Analyst Role
-GRANT ALL ON WAREHOUSE HRZN_WH TO ROLE HRZN_DATA_ANALYST;
+GRANT ALL ON WAREHOUSE identifier($WH_NAME) TO ROLE identifier($ROLE_ANALYST);
 
 -- next we will grant only OPERATE and USAGE privileges to our Test Role
-GRANT OPERATE, USAGE ON WAREHOUSE HRZN_WH TO ROLE HRZN_DATA_ANALYST;
-
--- before we proceed, let's SET a SQL Variable to equal our CURRENT_USER()
-SET MY_USER_ID  = CURRENT_USER();
+GRANT OPERATE, USAGE ON WAREHOUSE identifier($WH_NAME) TO ROLE identifier($ROLE_ANALYST);
 
 -- now we can GRANT our Role to the User we are currently logged in as
-GRANT ROLE HRZN_DATA_ANALYST TO USER identifier($MY_USER_ID);
+GRANT ROLE identifier($ROLE_ANALYST) TO USER identifier($USER_SUFFIX);
 
 --Lets try and access the CUSTOMER TABLE.
-SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER;
+SELECT * FROM identifier($TBL_CUSTOMER);
 
 --The previous query fails as the role hasn't been provided access to query the database, schema or the table CUSTOMER.
 
 -- now we will grant USAGE on our Database and all Schemas within it
-GRANT USAGE ON DATABASE HRZN_DB TO ROLE HRZN_DATA_ANALYST;
-GRANT USAGE ON ALL SCHEMAS IN DATABASE HRZN_DB TO ROLE HRZN_DATA_ANALYST;
+GRANT USAGE ON DATABASE identifier($DB_NAME) TO ROLE identifier($ROLE_ANALYST);
+GRANT USAGE ON ALL SCHEMAS IN DATABASE identifier($DB_NAME) TO ROLE identifier($ROLE_ANALYST);
 
 /**
  Snowflake Database and Schema Grants
@@ -163,8 +198,8 @@ GRANT USAGE ON ALL SCHEMAS IN DATABASE HRZN_DB TO ROLE HRZN_DATA_ANALYST;
 **/
 
 -- we are going to test Data Governance features as our Test Role, so let's ensure it can run SELECT statements against our Data Model
-GRANT SELECT ON ALL TABLES IN SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_ANALYST;
-GRANT SELECT ON ALL VIEWS IN SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_ANALYST;
+GRANT SELECT ON ALL TABLES IN SCHEMA identifier($FQ_SCH) TO ROLE identifier($ROLE_ANALYST);
+GRANT SELECT ON ALL VIEWS IN SCHEMA identifier($FQ_SCH) TO ROLE identifier($ROLE_ANALYST);
 
     /**
      Snowflake View and Table Privilege Grants
@@ -176,10 +211,10 @@ GRANT SELECT ON ALL VIEWS IN SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_ANALYST;
     **/
 
 
-USE ROLE HRZN_DATA_ANALYST;
+USE ROLE identifier($ROLE_ANALYST);
 
 --Lets query the table again
-SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER;
+SELECT * FROM identifier($TBL_CUSTOMER);
 
 
 /*************************************************/
@@ -188,7 +223,7 @@ SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 /*************************************************/
 /*************************************************/
 
-USE ROLE HRZN_DATA_ENGINEER;
+USE ROLE identifier($ROLE_ENGINEER);
 
 
 /*----------------------------------------------------------------------------------
@@ -198,9 +233,9 @@ Step  - Load the Data into the table
   Based Dynamic Data Masking. This will allow us to mask PII data in columns from
   our Test Role but not from more privileged Roles.
 ----------------------------------------------------------------------------------*/
---Load the file CustomerDataRaw.csv into the HRZN_DB.HRZN_SCH.CUSTOMER table via the snowsight UI
---Load the file CustomerOrders.csv into the HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS table via the snowsight UI
---Menu: Data -> Databases -> HRZN_DB -> HRZN_SCH -> Tables -> CUSTOMER
+--Load the file CustomerDataRaw.csv into the CUSTOMER table via the snowsight UI
+--Load the file CustomerOrders.csv into the CUSTOMER_ORDERS table via the snowsight UI
+--Menu: Data -> Databases -> Your DB -> HRZN_SCH -> Tables -> CUSTOMER
 
 
 
@@ -221,10 +256,10 @@ Step - Medallion Architecture (Bronze -> Silver -> Gold)
  data quality across the pipeline.
 ----------------------------------------------------------------------------------*/
 
-USE ROLE HRZN_DATA_ENGINEER;
-USE DATABASE HRZN_DB;
-USE SCHEMA HRZN_SCH;
-USE WAREHOUSE HRZN_WH;
+USE ROLE identifier($ROLE_ENGINEER);
+USE DATABASE identifier($DB_NAME);
+USE SCHEMA identifier($FQ_SCH);
+USE WAREHOUSE identifier($WH_NAME);
 
 /*----------------------------------------------------------------------------------
  S I L V E R   L A Y E R
@@ -235,17 +270,17 @@ USE WAREHOUSE HRZN_WH;
 ----------------------------------------------------------------------------------*/
 
 -- Create Silver Customer Orders table
-CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS AS
-select *, 
-date_trunc('month', order_ts) as order_month
-from hrzn_db.hrzn_sch.customer_orders;
+CREATE OR REPLACE TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) AS
+SELECT *, 
+    DATE_TRUNC('month', order_ts) AS order_month
+FROM identifier($TBL_CUSTOMER_ORDERS);
 
 -- Create Silver Customer table
-CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER AS
-select * exclude birthdate
-,to_date(birthdate, 'MM/DD/YY') as birthdate
-,datediff('year', to_date(birthdate, 'MM/DD/YY'), current_date()) as age
-from hrzn_db.hrzn_sch.customer;
+CREATE OR REPLACE TABLE identifier($TBL_SILVER_CUSTOMER) AS
+SELECT * EXCLUDE birthdate,
+    TO_DATE(birthdate, 'MM/DD/YY') AS birthdate,
+    DATEDIFF('year', TO_DATE(birthdate, 'MM/DD/YY'), CURRENT_DATE()) AS age
+FROM identifier($TBL_CUSTOMER);
 
 
 /*----------------------------------------------------------------------------------
@@ -256,7 +291,7 @@ from hrzn_db.hrzn_sch.customer;
 ----------------------------------------------------------------------------------*/
 
 -- Create Gold Customer Order Summary joining Silver tables
-CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY AS
+CREATE OR REPLACE TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) AS
 SELECT 
     c.ID,
     c.FIRST_NAME,
@@ -268,8 +303,8 @@ SELECT
     SUM(o.ORDER_AMOUNT) AS TOTAL_AMOUNT,
     SUM(o.ORDER_TAX) AS TOTAL_TAX,
     SUM(o.ORDER_TOTAL) AS TOTAL_REVENUE
-FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER c
-LEFT JOIN HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS o
+FROM identifier($TBL_SILVER_CUSTOMER) c
+LEFT JOIN identifier($TBL_SILVER_CUSTOMER_ORDERS) o
     ON c.ID = o.CUSTOMER_ID
 GROUP BY c.ID, c.FIRST_NAME, c.LAST_NAME, c.STATE, c.CITY, c.COMPANY;
 
@@ -283,7 +318,7 @@ GROUP BY c.ID, c.FIRST_NAME, c.LAST_NAME, c.STATE, c.CITY, c.COMPANY;
 ----------------------------------------------------------------------------------*/
 
 -- Referential Check DMF: Returns count of orphaned foreign keys
-CREATE OR REPLACE DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK(
+CREATE OR REPLACE DATA METRIC FUNCTION identifier($DMF_REFERENTIAL_CHECK) (
     arg_t1 TABLE (arg_c1 VARCHAR), 
     arg_t2 TABLE (arg_c2 FLOAT)
 )
@@ -292,7 +327,7 @@ RETURNS NUMBER AS
  WHERE arg_c1 NOT IN (SELECT arg_c2 FROM arg_t2)';
 
 -- Volume Check DMF: Returns difference in row counts between two tables
-CREATE OR REPLACE DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK(
+CREATE OR REPLACE DATA METRIC FUNCTION identifier($DMF_VOLUME_CHECK) (
     arg_t1 TABLE (arg_c1 VARCHAR), 
     arg_t2 TABLE (arg_c2 VARCHAR)
 )
@@ -302,8 +337,8 @@ RETURNS NUMBER AS
 )';
 
 -- Grant DMFs to relevant roles
-GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK(TABLE(VARCHAR), TABLE(FLOAT)) TO ROLE PUBLIC;
-GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK(TABLE(VARCHAR), TABLE(VARCHAR)) TO ROLE PUBLIC;
+GRANT ALL ON FUNCTION identifier($DMF_REFERENTIAL_CHECK)(TABLE(VARCHAR), TABLE(FLOAT)) TO ROLE PUBLIC;
+GRANT ALL ON FUNCTION identifier($DMF_VOLUME_CHECK)(TABLE(VARCHAR), TABLE(VARCHAR)) TO ROLE PUBLIC;
 
 
 /*----------------------------------------------------------------------------------
@@ -314,70 +349,69 @@ GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK(TABLE(VARCHAR), TABLE(VARCHA
  alerts when violated.
 ----------------------------------------------------------------------------------*/
 
--- BRONZE DMFS
-
 -- ==========================================
 -- SILVER_CUSTOMER DMFs
 -- ==========================================
 
 -- Set the schedule for SILVER_CUSTOMER
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER SET DATA_METRIC_SCHEDULE = '5 minute';
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER) SET DATA_METRIC_SCHEDULE = '5 minute';
 
 -- Volume check: Ensure table has data
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 0);
 
 -- Accuracy check: ID should never be null
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ID) 
     Expectation ID_Not_Null (value = 0);
 
 -- Uniqueness check: Email, ID should be unique; age should >0
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
-    add DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (EMAIL)
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER) 
+    ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (EMAIL)
     Expectation email_dupes (value = 0);
 
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (ID) 
     Expectation id_dupes (value = 0);
 
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER 
-  add DATA METRIC FUNCTION SNOWFLAKE.CORE.ACCEPTED_VALUES ON (age, age -> age > 0)
-  expectation age_invalid (value > 0);
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER) 
+    ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ACCEPTED_VALUES ON (age, age -> age > 0)
+    Expectation age_invalid (value > 0);
 
 -- ==========================================
 -- SILVER_CUSTOMER_ORDERS DMFs
 -- ==========================================
 
 -- Set the schedule for SILVER_CUSTOMER_ORDERS
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS SET DATA_METRIC_SCHEDULE = '5 minute';
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) SET DATA_METRIC_SCHEDULE = '5 minute';
 
 -- Volume check: Ensure table has data
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 0);
 
 -- Accuracy check: ORDER_ID should never be null;
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ORDER_ID) 
     Expectation OrderID_Not_Null (value = 0);
 
 -- Uniqueness check: order_ID should be unique; 
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (ORDER_ID) 
     Expectation OrderID_dupes (value = 0);
 
 -- Referential integrity check: All CUSTOMER_IDs should exist in SILVER_CUSTOMER
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
-    ADD DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK 
-    ON (CUSTOMER_ID, TABLE (HRZN_DB.HRZN_SCH.SILVER_CUSTOMER(ID))) 
+-- Note: Custom DMF with TABLE references requires literal table names, using dynamic SQL workaround
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
+    ADD DATA METRIC FUNCTION identifier($DMF_REFERENTIAL_CHECK) 
+    ON (CUSTOMER_ID, TABLE (identifier($TBL_SILVER_CUSTOMER)(ID))) 
     Expectation FK_Check (value = 0);
 
 -- Volume check: Silver should match Bronze row count
-ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
-    ADD DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK 
-    ON (CUSTOMER_ID, TABLE (HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS(CUSTOMER_ID))) 
+ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
+    ADD DATA METRIC FUNCTION identifier($DMF_VOLUME_CHECK) 
+    ON (CUSTOMER_ID, TABLE (identifier($TBL_CUSTOMER_ORDERS)(CUSTOMER_ID))) 
     Expectation NoDiff (value = 0);
 
 
@@ -386,20 +420,20 @@ ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS
 -- ==========================================
 
 -- Set the schedule for GOLD_CUSTOMER_ORDER_SUMMARY
-ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY SET DATA_METRIC_SCHEDULE = '5 minute';
+ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) SET DATA_METRIC_SCHEDULE = '5 minute';
 
 -- Volume check: Ensure table has data
-ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY 
+ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 0);
 
 -- Accuracy check: ID should never be null
-ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY 
+ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ID) 
     Expectation ID_Not_Null (value = 0);
 
 -- Freshness check: Data should be recent (within 30 minutes)
-ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY 
+ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.FRESHNESS ON () 
     Expectation Freshness_Check (value < 1800);
 
@@ -407,17 +441,17 @@ ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
 -- Review DMF schedules for all medallion tables
 SELECT metric_name, ref_entity_name, schedule, schedule_status 
 FROM TABLE(information_schema.data_metric_function_references(
-    ref_entity_name => 'HRZN_DB.HRZN_SCH.SILVER_CUSTOMER', 
+    ref_entity_name => $TBL_SILVER_CUSTOMER, 
     ref_entity_domain => 'TABLE'));
 
 SELECT metric_name, ref_entity_name, schedule, schedule_status 
 FROM TABLE(information_schema.data_metric_function_references(
-    ref_entity_name => 'HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS', 
+    ref_entity_name => $TBL_SILVER_CUSTOMER_ORDERS, 
     ref_entity_domain => 'TABLE'));
 
 SELECT metric_name, ref_entity_name, schedule, schedule_status 
 FROM TABLE(information_schema.data_metric_function_references(
-    ref_entity_name => 'HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY', 
+    ref_entity_name => $TBL_GOLD_CUSTOMER_ORDER_SUMMARY, 
     ref_entity_domain => 'TABLE'));
 
 
@@ -429,25 +463,25 @@ FROM TABLE(information_schema.data_metric_function_references(
 ----------------------------------------------------------------------------------*/
 
 -- Grant permissions on SILVER_CUSTOMER
-GRANT ALL ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER TO ROLE HRZN_DATA_GOVERNOR;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER TO ROLE HRZN_DATA_USER;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER TO ROLE HRZN_IT_ADMIN;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER TO ROLE HRZN_DATA_ANALYST;
+GRANT ALL ON TABLE identifier($TBL_SILVER_CUSTOMER) TO ROLE identifier($ROLE_GOVERNOR);
+GRANT SELECT ON TABLE identifier($TBL_SILVER_CUSTOMER) TO ROLE identifier($ROLE_USER);
+GRANT SELECT ON TABLE identifier($TBL_SILVER_CUSTOMER) TO ROLE identifier($ROLE_IT_ADMIN);
+GRANT SELECT ON TABLE identifier($TBL_SILVER_CUSTOMER) TO ROLE identifier($ROLE_ANALYST);
 
 -- Grant permissions on SILVER_CUSTOMER_ORDERS
-GRANT ALL ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS TO ROLE HRZN_DATA_GOVERNOR;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS TO ROLE HRZN_DATA_USER;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS TO ROLE HRZN_IT_ADMIN;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS TO ROLE HRZN_DATA_ANALYST;
+GRANT ALL ON TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) TO ROLE identifier($ROLE_GOVERNOR);
+GRANT SELECT ON TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) TO ROLE identifier($ROLE_USER);
+GRANT SELECT ON TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) TO ROLE identifier($ROLE_IT_ADMIN);
+GRANT SELECT ON TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) TO ROLE identifier($ROLE_ANALYST);
 
 -- Grant permissions on GOLD_CUSTOMER_ORDER_SUMMARY
-GRANT ALL ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_DATA_GOVERNOR;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_DATA_USER;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_IT_ADMIN;
-GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY TO ROLE HRZN_DATA_ANALYST;
+GRANT ALL ON TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) TO ROLE identifier($ROLE_GOVERNOR);
+GRANT SELECT ON TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) TO ROLE identifier($ROLE_USER);
+GRANT SELECT ON TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) TO ROLE identifier($ROLE_IT_ADMIN);
+GRANT SELECT ON TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) TO ROLE identifier($ROLE_ANALYST);
 
 -- Sample from Gold table to verify join worked correctly
-SELECT * FROM HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY
+SELECT * FROM identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY)
 ORDER BY TOTAL_REVENUE DESC NULLS LAST
 LIMIT 10;
 
@@ -461,7 +495,7 @@ SELECT
     metric_name,
     value
 FROM SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS
-WHERE table_database = 'HRZN_DB'
+WHERE table_database = $DB_NAME
     AND table_name IN ('SILVER_CUSTOMER', 'SILVER_CUSTOMER_ORDERS', 'GOLD_CUSTOMER_ORDER_SUMMARY')
 ORDER BY change_commit_time DESC;
 
