@@ -1,6 +1,15 @@
 Step 1:
 Setup a snowflake trial account: 
-[Docs](https://docs.snowflake.com/en/user-guide/admin-trial-account)
+[Docs](https://docs.snowflake.com/en/user-guide/admin-trial-account).
+[Trial Account Webpage](https://signup.snowflake.com/)
+
+Ensure to chose the right region & distribution:
+![image](assets/signup-p1.png)
+![image](assets/signup-p2.png)
+
+Check your email and create a unique username and password.
+![image](assets/email-p1.png)
+
 
 ```sql
 Step 2: Setup a github integration.
