@@ -70,6 +70,7 @@ USE ROLE accountadmin;
       > WAREHOUSE_SIZE: 
             Size specifies the amount of compute resources available per cluster 
             in a warehouse. The available sizes range from X-Small to 6X-Large.
+            Note: In this lab, we limit to Medium as the maximum size.
             Default: 'XSmall'
       > WAREHOUSE_TYPE:
             Defines the type of virtual warehouse, which dictates its architecture and behavior
@@ -157,7 +158,7 @@ SELECT * FROM identifier($TBL_TRUCK_DETAILS);
     
     We can easily scale up our warehouses on the fly with a simple ALTER WAREHOUSE statement.
 */
-ALTER WAREHOUSE identifier($MY_WH) SET warehouse_size = 'XLarge';
+ALTER WAREHOUSE identifier($MY_WH) SET warehouse_size = 'medium';
 
 --Let's now take a look at the sales per truck.
 SET SELECT_SQL = 'SELECT

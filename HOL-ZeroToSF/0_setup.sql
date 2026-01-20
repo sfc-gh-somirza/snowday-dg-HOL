@@ -125,7 +125,7 @@ COMMENT = 'Schema for the business-friendly semantic layer, optimized for analyt
 
 -- create warehouses
 CREATE OR REPLACE WAREHOUSE identifier($WH_DE)
-    WAREHOUSE_SIZE = 'large' -- Large for initial data load - scaled down to XSmall at end of this scripts
+    WAREHOUSE_SIZE = 'medium' -- Medium for initial data load - scaled down to XSmall at end of this script
     WAREHOUSE_TYPE = 'standard'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
@@ -144,7 +144,7 @@ COMMENT = 'developer warehouse for tasty bytes';
 CREATE OR REPLACE WAREHOUSE identifier($WH_ANALYST)
     COMMENT = 'TastyBytes Analyst Warehouse'
     WAREHOUSE_TYPE = 'standard'
-    WAREHOUSE_SIZE = 'large'
+    WAREHOUSE_SIZE = 'medium'
     MIN_CLUSTER_COUNT = 1
     MAX_CLUSTER_COUNT = 2
     SCALING_POLICY = 'standard'
@@ -152,14 +152,14 @@ CREATE OR REPLACE WAREHOUSE identifier($WH_ANALYST)
     INITIALLY_SUSPENDED = true,
     AUTO_RESUME = true;
 
--- Create a dedicated large warehouse for analytical workloads
+-- Create a dedicated medium warehouse for analytical workloads
 CREATE OR REPLACE WAREHOUSE identifier($WH_CORTEX)
-    WAREHOUSE_SIZE = 'LARGE'
+    WAREHOUSE_SIZE = 'medium'
     WAREHOUSE_TYPE = 'STANDARD'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
     INITIALLY_SUSPENDED = TRUE
-COMMENT = 'Dedicated large warehouse for Cortex Analyst and other analytical tools.';
+COMMENT = 'Dedicated medium warehouse for Cortex Analyst and other analytical tools.';
 
 -- create roles
 USE ROLE securityadmin;

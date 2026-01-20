@@ -173,13 +173,13 @@ SELECT * FROM identifier($TBL_TRUCK_DETAILS);
 
 #### **Step 4 \- Scaling a Warehouse**
 
-Warehouses in Snowflake are designed for elasticity. We can scale our warehouse up on the fly to handle a more intensive workload. Let's scale our warehouse to an X-Large.
+Warehouses in Snowflake are designed for elasticity. We can scale our warehouse up on the fly to handle a more intensive workload. Let's scale our warehouse to a Medium.
 
 ```sql
-ALTER WAREHOUSE identifier($MY_WH) SET warehouse_size = 'XLarge';
+ALTER WAREHOUSE identifier($MY_WH) SET warehouse_size = 'medium';
 ```
 
-With our larger warehouse, let's run a query to calculate total sales per truck brand. Note: This query uses dynamic SQL because it references a view.
+With our medium warehouse, let's run a query to calculate total sales per truck brand. Note: This query uses dynamic SQL because it references a view.
 
 ```sql
 SET SELECT_SQL = 'SELECT
