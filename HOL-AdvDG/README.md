@@ -69,13 +69,13 @@ Consider a data pipeline following a modern data architecture pattern with three
 -- Bronze tables (CUSTOMER, CUSTOMER_ORDERS) are loaded from S3 during setup
 -- See 0_setup.sql for the COPY INTO statements that load the raw data
 
-INSERT INTO identifier($TBL_CUSTOMER) VALUES
+INSERT INTO HRZN_DB.HRZN_SCH.CUSTOMER VALUES
     (1, 'John', 'Doe', '123 Elm St', 'CA', 'San Francisco', '94105', '123-456-7890', 'john.doe@email.com', '111-22-3333', '1985-04-12', 'Engineer', '4111111111111111', 'Acme Inc.', 'Y'),
     (2, 'Jane', 'Smith', NULL, 'CA', 'Los Angeles', '90001', NULL, 'jane.smith@email.com', NULL, '1990/07/25', 'Manager', '5500000000000004', 'Globex', 'N'),
     (3, 'Mike', 'Brown', '456 Oak St', 'NV', 'Las Vegas', '89101', '9999999999', 'mike.brown.com', '123-45-6789', 'bad-date', 'Analyst', '4000000000000002', NULL, 'Y'),
     (4, 'Anna', 'Lee', '789 Pine St', 'WA', 'Seattle', '98101', '206-555-1234', 'anna.lee@email.com', '222-33-4444', '1988-11-05', 'Designer', '340000000000009', 'Innotech', 'Y');
 
-INSERT INTO identifier($TBL_CUSTOMER_ORDERS) VALUES
+INSERT INTO HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS VALUES
     ('1', 'O1', 1, 9, 2025, 100, 8.25, 108.25, 'CREDIT_CARD'),
     ('2', 'O2', 2, 9, 2025, 200, NULL, 200, 'PAYPAL'),
     ('2', 'O3', 3, 9, 2025, 300, 60, 360, 'BANK_TRANSFER'),
@@ -89,31 +89,31 @@ INSERT INTO identifier($TBL_CUSTOMER_ORDERS) VALUES
 
 ```sql
 -- Define Silver layer table variables
-SET TBL_SILVER_CUSTOMER = $FQ_SCH || '.SILVER_CUSTOMER';
-SET TBL_SILVER_CUSTOMER_ORDERS = $FQ_SCH || '.SILVER_CUSTOMER_ORDERS';
+SET TBL_SILVER_CUSTOMER = 'HRZN_DB.HRZN_SCH' || '.SILVER_CUSTOMER';
+SET TBL_SILVER_CUSTOMER_ORDERS = 'HRZN_DB.HRZN_SCH' || '.SILVER_CUSTOMER_ORDERS';
 
 -- Create Silver Customer Orders table
-CREATE OR REPLACE TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) AS
+CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS AS
 SELECT *, 
     DATE_TRUNC('month', order_ts) AS order_month
-FROM identifier($TBL_CUSTOMER_ORDERS);
+FROM HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS;
 
 -- Create Silver Customer table
 CREATE OR REPLACE TABLE identifier($TBL_SILVER_CUSTOMER) AS
 SELECT * EXCLUDE birthdate,
     TO_DATE(birthdate, 'MM/DD/YY') AS birthdate,
     DATEDIFF('year', TO_DATE(birthdate, 'MM/DD/YY'), CURRENT_DATE()) AS age
-FROM identifier($TBL_CUSTOMER);
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 #### **Gold Layer (Aggregated by Customer State and Payment Type)**
 
 ```sql
 -- Define Gold layer table variable
-SET TBL_GOLD_CUSTOMER_ORDER_SUMMARY = $FQ_SCH || '.GOLD_CUSTOMER_ORDER_SUMMARY';
+SET TBL_GOLD_CUSTOMER_ORDER_SUMMARY = 'HRZN_DB.HRZN_SCH' || '.GOLD_CUSTOMER_ORDER_SUMMARY';
 
 -- Create Gold Customer Order Summary joining Silver tables
-CREATE OR REPLACE TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) AS
+CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY AS
 SELECT
     c.ID,
     c.FIRST_NAME,
@@ -126,7 +126,7 @@ SELECT
     SUM(o.ORDER_TAX) AS TOTAL_TAX,
     SUM(o.ORDER_TOTAL) AS TOTAL_REVENUE
 FROM identifier($TBL_SILVER_CUSTOMER) c
-LEFT JOIN identifier($TBL_SILVER_CUSTOMER_ORDERS) o
+LEFT JOIN HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS o
     ON c.ID = o.CUSTOMER_ID
 GROUP BY c.ID, c.FIRST_NAME, c.LAST_NAME, c.STATE, c.CITY, c.COMPANY;
 ```
@@ -169,11 +169,11 @@ All DMFs that are set on the table follow a [schedule](https://docs.snowflake.co
 ```sql
 -- DMF privileges are granted during setup in 0_setup.sql
 -- The following grants are applied to DATA_ENGINEER and DATA_GOVERNOR roles:
-GRANT EXECUTE DATA METRIC FUNCTION ON ACCOUNT TO ROLE identifier($ROLE_ENGINEER);
-GRANT DATABASE ROLE SNOWFLAKE.DATA_METRIC_USER TO ROLE identifier($ROLE_ENGINEER);
+GRANT EXECUTE DATA METRIC FUNCTION ON ACCOUNT TO ROLE HRZN_DATA_ENGINEER;
+GRANT DATABASE ROLE SNOWFLAKE.DATA_METRIC_USER TO ROLE HRZN_DATA_ENGINEER;
 
-GRANT EXECUTE DATA METRIC FUNCTION ON ACCOUNT TO ROLE identifier($ROLE_GOVERNOR);
-GRANT DATABASE ROLE SNOWFLAKE.DATA_METRIC_USER TO ROLE identifier($ROLE_GOVERNOR);
+GRANT EXECUTE DATA METRIC FUNCTION ON ACCOUNT TO ROLE HRZN_DATA_GOVERNOR;
+GRANT DATABASE ROLE SNOWFLAKE.DATA_METRIC_USER TO ROLE HRZN_DATA_GOVERNOR;
 ```
 
 #### **Monitoring Bronze Layer**
@@ -183,20 +183,20 @@ The following example associates volume, freshness, and null checks using DMFs a
 
 ```sql
 -- Set the schedule for Bronze CUSTOMER_ORDERS
-ALTER TABLE identifier($TBL_CUSTOMER_ORDERS) SET DATA_METRIC_SCHEDULE = '5 minute';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS SET DATA_METRIC_SCHEDULE = '5 minute';
 
 -- Volume check: Ensure table has data
-ALTER TABLE identifier($TBL_CUSTOMER_ORDERS) 
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 1);
 
 -- Freshness check: Data should be recent
-ALTER TABLE identifier($TBL_CUSTOMER_ORDERS) 
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.FRESHNESS ON () 
     Expectation Freshness_Check (value < 1800);
 
 -- Null count check: ORDER_ID should never be null
-ALTER TABLE identifier($TBL_CUSTOMER_ORDERS) 
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ORDER_ID) 
     Expectation Null_Check (value = 0);
 ```
@@ -208,11 +208,11 @@ Create a custom DMF for referential integrity check
 
 ```sql
 -- Define DMF names (fully qualified)
-SET DMF_REFERENTIAL_CHECK = $FQ_SCH || '.REFERENTIAL_CHECK';
-SET DMF_VOLUME_CHECK = $FQ_SCH || '.VOLUME_CHECK';
+SET DMF_REFERENTIAL_CHECK = 'HRZN_DB.HRZN_SCH' || '.REFERENTIAL_CHECK';
+SET DMF_VOLUME_CHECK = 'HRZN_DB.HRZN_SCH' || '.VOLUME_CHECK';
 
 -- Referential Check DMF: Returns count of orphaned foreign keys
-CREATE OR REPLACE DATA METRIC FUNCTION identifier($DMF_REFERENTIAL_CHECK) (
+CREATE OR REPLACE DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK (
     arg_t1 TABLE (arg_c1 VARCHAR), 
     arg_t2 TABLE (arg_c2 FLOAT)
 )
@@ -225,7 +225,7 @@ Create a custom DMF that compares row counts between two tables
 
 ```sql
 -- Volume Check DMF: Returns difference in row counts between two tables
-CREATE OR REPLACE DATA METRIC FUNCTION identifier($DMF_VOLUME_CHECK) (
+CREATE OR REPLACE DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK (
     arg_t1 TABLE (arg_c1 VARCHAR), 
     arg_t2 TABLE (arg_c2 VARCHAR)
 )
@@ -235,41 +235,41 @@ RETURNS NUMBER AS
     )';
 
 -- Grant DMFs to relevant roles
-GRANT ALL ON FUNCTION identifier($DMF_REFERENTIAL_CHECK)(TABLE(VARCHAR), TABLE(FLOAT)) TO ROLE PUBLIC;
-GRANT ALL ON FUNCTION identifier($DMF_VOLUME_CHECK)(TABLE(VARCHAR), TABLE(VARCHAR)) TO ROLE PUBLIC;
+GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK(TABLE(VARCHAR), TABLE(FLOAT)) TO ROLE PUBLIC;
+GRANT ALL ON FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK(TABLE(VARCHAR), TABLE(VARCHAR)) TO ROLE PUBLIC;
 ```
 
 Associate checks
 
 ```sql
 -- Set the schedule for SILVER_CUSTOMER_ORDERS
-ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) SET DATA_METRIC_SCHEDULE = '5 minute';
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS SET DATA_METRIC_SCHEDULE = '5 minute';
 
 -- Volume check: Ensure table has data
-ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 0);
 
 -- Accuracy check: ORDER_ID should never be null
-ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ORDER_ID) 
     Expectation OrderID_Not_Null (value = 0);
 
 -- Uniqueness check: ORDER_ID should be unique
-ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT ON (ORDER_ID) 
     Expectation OrderID_dupes (value = 0);
 
 -- Referential integrity check: All CUSTOMER_IDs should exist in SILVER_CUSTOMER
-ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
-    ADD DATA METRIC FUNCTION identifier($DMF_REFERENTIAL_CHECK) 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
+    ADD DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.REFERENTIAL_CHECK 
     ON (CUSTOMER_ID, TABLE (identifier($TBL_SILVER_CUSTOMER)(ID))) 
     Expectation FK_Check (value = 0);
 
 -- Volume check: Silver should match Bronze row count
-ALTER TABLE identifier($TBL_SILVER_CUSTOMER_ORDERS) 
-    ADD DATA METRIC FUNCTION identifier($DMF_VOLUME_CHECK) 
-    ON (CUSTOMER_ID, TABLE (identifier($TBL_CUSTOMER_ORDERS)(CUSTOMER_ID))) 
+ALTER TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS 
+    ADD DATA METRIC FUNCTION HRZN_DB.HRZN_SCH.VOLUME_CHECK 
+    ON (CUSTOMER_ID, TABLE (HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS(CUSTOMER_ID))) 
     Expectation NoDiff (value = 0);
 ```
 
@@ -283,20 +283,20 @@ For example, in a payment\_type column, the accepted values might be ('CREDIT\_C
 
 ```sql
 -- Set the schedule for GOLD_CUSTOMER_ORDER_SUMMARY
-ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) SET DATA_METRIC_SCHEDULE = '5 minute';
+ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY SET DATA_METRIC_SCHEDULE = '5 minute';
 
 -- Volume check: Ensure table has data
-ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) 
+ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT ON () 
     Expectation Volume_Check (value > 0);
 
 -- Accuracy check: ID should never be null
-ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) 
+ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NULL_COUNT ON (ID) 
     Expectation ID_Not_Null (value = 0);
 
 -- Freshness check: Data should be recent (within 30 minutes)
-ALTER TABLE identifier($TBL_GOLD_CUSTOMER_ORDER_SUMMARY) 
+ALTER TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY 
     ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.FRESHNESS ON () 
     Expectation Freshness_Check (value < 1800);
 
@@ -309,7 +309,7 @@ SELECT
     metric_name,
     value
 FROM SNOWFLAKE.LOCAL.DATA_QUALITY_MONITORING_RESULTS
-WHERE table_database = $DB_NAME
+WHERE table_database = 'HRZN_DB'
     AND table_name IN ('SILVER_CUSTOMER', 'SILVER_CUSTOMER_ORDERS', 'GOLD_CUSTOMER_ORDER_SUMMARY')
 ORDER BY change_commit_time DESC;
 ```
@@ -359,17 +359,17 @@ In snowsight upload worksheet 2\_Data\_Governor. Below is an explanation of the 
 Let's start by assuming the Data User role and using our Horizon Warehouse (synonymous with compute). This lets us see what access our Data Users have to our customer data.
 
 ```sql
-USE ROLE identifier($ROLE_USER);
-USE WAREHOUSE identifier($WH_NAME);
-USE DATABASE identifier($DB_NAME);
-USE SCHEMA identifier($FQ_SCH);
+USE ROLE HRZN_DATA_USER;
+USE WAREHOUSE HRZN_WH;
+USE DATABASE HRZN_DB;
+USE SCHEMA HRZN_DB.HRZN_SCH;
 ```
 
 Now, Let's look at the customer details
 
 ```sql
 SELECT FIRST_NAME, LAST_NAME, STREET_ADDRESS, STATE, CITY, ZIP, PHONE_NUMBER, EMAIL, SSN, BIRTHDATE, CREDITCARD
-FROM identifier($TBL_CUSTOMER)
+FROM HRZN_DB.HRZN_SCH.CUSTOMER
 SAMPLE (100 ROWS);
 ```
 
@@ -379,10 +379,10 @@ Looking at this table we can see there is a lot of PII and sensitive data that n
 To set this straight, we need to ensure that the right fields are classified and tagged properly. Further, we need to mask PII and other senstive data. Lets switch to the Data governor role and we can explore the Horizon features for classification, tagging and masking.
 
 ```sql
-USE ROLE identifier($ROLE_GOVERNOR);
-USE WAREHOUSE identifier($WH_NAME);
-USE DATABASE identifier($DB_NAME);
-USE SCHEMA identifier($FQ_SCH);
+USE ROLE HRZN_DATA_GOVERNOR;
+USE WAREHOUSE HRZN_WH;
+USE DATABASE HRZN_DB;
+USE SCHEMA HRZN_DB.HRZN_SCH;
 ```
 
 #### **Sensitive Data Classification**
@@ -399,7 +399,7 @@ OPTIONAL: You can perform classification through the UI as well. \--Databases \-
 As our Raw Customer Schema only includes one table, let's use SYSTEM$CLASSIFY against it
 
 ```sql
-CALL SYSTEM$CLASSIFY($TBL_CUSTOMER, {'auto_tag': true});
+CALL SYSTEM$CLASSIFY('HRZN_DB.HRZN_SCH.CUSTOMER', {'auto_tag': true});
 ```
 
 Now let's view the new Tags Snowflake applied automatically via Data Classification
@@ -407,8 +407,8 @@ Now let's view the new Tags Snowflake applied automatically via Data Classificat
 ```sql
 SELECT TAG_DATABASE, TAG_SCHEMA, OBJECT_NAME, COLUMN_NAME, TAG_NAME, TAG_VALUE
 FROM TABLE(
-  identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
-    $TBL_CUSTOMER,
+  identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+    'HRZN_DB.HRZN_SCH.CUSTOMER',
     'table'
 ));
 ```
@@ -417,13 +417,13 @@ OPTIONAL You can perform classification through the UI as well. \--Databases \-\
 As our Raw Point-of-Sale Schema includes numerous tables, let's use SYSTEM$CLASSIFY\_SCHEMA against it
 
 ```sql
-CALL SYSTEM$CLASSIFY_SCHEMA($FQ_SCH, {'auto_tag': true});
+CALL SYSTEM$CLASSIFY_SCHEMA('HRZN_DB.HRZN_SCH', {'auto_tag': true});
 ```
 
 Once again, let's view the Tags applied using the Customer table within the Schema
 
 ```sql
-SELECT * FROM TABLE(identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')($TBL_CUSTOMER,'table'));
+SELECT * FROM TABLE(identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')('HRZN_DB.HRZN_SCH.CUSTOMER','table'));
 ```
 
 #### **Custom Classification**
@@ -435,10 +435,10 @@ Snowflake provides the CUSTOM\_CLASSIFIER class in the SNOWFLAKE.DATA\_PRIVACY s
 SET CLASSIFIER_CREDITCARD = $FQ_CLASSIFIERS || '.CREDITCARD';
 
 -- Use classifiers schema
-USE SCHEMA identifier($FQ_CLASSIFIERS);
+USE SCHEMA HRZN_DB.CLASSIFIERS;
 
 -- Create a classifier for the credit card data
-CREATE OR REPLACE SNOWFLAKE.DATA_PRIVACY.CUSTOM_CLASSIFIER identifier($CLASSIFIER_CREDITCARD)();
+CREATE OR REPLACE SNOWFLAKE.DATA_PRIVACY.CUSTOM_CLASSIFIER HRZN_DB.CLASSIFIERS.CREDITCARD();
 
 SHOW SNOWFLAKE.DATA_PRIVACY.CUSTOM_CLASSIFIER;
 
@@ -450,16 +450,16 @@ CALL CREDITCARD!ADD_REGEX('AMX_PAYMENT_CARD','IDENTIFIER','^3[4-7][0-9]{13}$');
 SELECT CREDITCARD!LIST();
 
 -- OPTIONAL: Check if table has the data that matches the credit card number pattern
-SELECT CREDITCARD FROM identifier($TBL_CUSTOMER) WHERE CREDITCARD REGEXP '^3[4-7][0-9]{13}$';
+SELECT CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER WHERE CREDITCARD REGEXP '^3[4-7][0-9]{13}$';
 
 -- Classify the data with custom classifier
-CALL SYSTEM$CLASSIFY($TBL_CUSTOMER, {'auto_tag': true, 'custom_classifiers': [$CLASSIFIER_CREDITCARD]});
+CALL SYSTEM$CLASSIFY('HRZN_DB.HRZN_SCH.CUSTOMER', {'auto_tag': true, 'custom_classifiers': [HRZN_DB.CLASSIFIERS.CREDITCARD]});
 ```
 
 Note: This statement shows if a column is classified as a particular tag
 
 ```sql
-SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category', $TBL_CUSTOMER || '.CREDITCARD', 'column');
+SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category', 'HRZN_DB.HRZN_SCH.CUSTOMER' || '.CREDITCARD', 'column');
 ```
 
 Moving forward as Schemas or Tables are created and updated we can use this exact process of Automatic and Custom Classification to maintain a strong governance posture and build rich semantic-layer metadata.
@@ -474,42 +474,42 @@ SET TAG_COST_CENTER = $FQ_TAG || '.COST_CENTER';
 SET TAG_CONFIDENTIAL = $FQ_TAG || '.CONFIDENTIAL';
 SET TAG_PII_TYPE = $FQ_TAG || '.PII_TYPE';
 
-USE SCHEMA identifier($FQ_TAG);
+USE SCHEMA HRZN_DB.TAG_SCHEMA;
 ```
 
 Create cost\_center tag and add comment
 
 ```sql
-CREATE OR REPLACE TAG identifier($TAG_COST_CENTER) ALLOWED_VALUES 'Sales','Marketing','Support';
-ALTER TAG identifier($TAG_COST_CENTER) SET COMMENT = 'Respective Cost center for chargeback';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.COST_CENTER ALLOWED_VALUES 'Sales','Marketing','Support';
+ALTER TAG HRZN_DB.TAG_SCHEMA.COST_CENTER SET COMMENT = 'Respective Cost center for chargeback';
 ```
 
 Create on sensitive datasets and add comments
 
 ```sql
-CREATE OR REPLACE TAG identifier($TAG_CONFIDENTIAL) ALLOWED_VALUES 'Sensitive','Restricted','Highly Confidential';
-ALTER TAG identifier($TAG_CONFIDENTIAL) SET COMMENT = 'Confidential information';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.CONFIDENTIAL ALLOWED_VALUES 'Sensitive','Restricted','Highly Confidential';
+ALTER TAG HRZN_DB.TAG_SCHEMA.CONFIDENTIAL SET COMMENT = 'Confidential information';
                                       
-CREATE OR REPLACE TAG identifier($TAG_PII_TYPE) ALLOWED_VALUES 'Email','Phone Number','Last Name';
-ALTER TAG identifier($TAG_PII_TYPE) SET COMMENT = 'PII Columns';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.PII_TYPE ALLOWED_VALUES 'Email','Phone Number','Last Name';
+ALTER TAG HRZN_DB.TAG_SCHEMA.PII_TYPE SET COMMENT = 'PII Columns';
 ```
 
 Apply tag on warehouse
 
 ```sql
-ALTER WAREHOUSE identifier($WH_NAME) SET TAG identifier($TAG_COST_CENTER) = 'Sales';
+ALTER WAREHOUSE HRZN_WH SET TAG HRZN_DB.TAG_SCHEMA.COST_CENTER = 'Sales';
 ```
 
 Apply tags at the table and column level
 
 ```sql
 --Table Level
-ALTER TABLE identifier($TBL_CUSTOMER) SET TAG identifier($TAG_CONFIDENTIAL) = 'Sensitive';  
-ALTER TABLE identifier($TBL_CUSTOMER) SET TAG identifier($TAG_COST_CENTER) = 'Sales';  
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER SET TAG HRZN_DB.TAG_SCHEMA.CONFIDENTIAL = 'Sensitive';  
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER SET TAG HRZN_DB.TAG_SCHEMA.COST_CENTER = 'Sales';  
 --Column Level
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY EMAIL SET TAG identifier($TAG_PII_TYPE) = 'Email';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY PHONE_NUMBER SET TAG identifier($TAG_PII_TYPE) = 'Phone Number';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY LAST_NAME SET TAG identifier($TAG_PII_TYPE) = 'Last Name';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY EMAIL SET TAG HRZN_DB.TAG_SCHEMA.PII_TYPE = 'Email';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY PHONE_NUMBER SET TAG HRZN_DB.TAG_SCHEMA.PII_TYPE = 'Phone Number';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY LAST_NAME SET TAG HRZN_DB.TAG_SCHEMA.PII_TYPE = 'Last Name';
 ```
 
 Query account usage view to check tags and reference  
@@ -530,7 +530,7 @@ SELECT
     tag_name,
     column_name,
     tag_value
-FROM TABLE(INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS($TBL_CUSTOMER,'table'));
+FROM TABLE(INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS('HRZN_DB.HRZN_SCH.CUSTOMER','table'));
 ```
 
 #### **Dynamic Data Masking**
@@ -543,7 +543,7 @@ SET POLICY_MASK_PII = $FQ_TAG || '.MASK_PII';
 SET POLICY_MASK_SENSITIVE = $FQ_TAG || '.MASK_SENSITIVE';
 
 -- Create masking policy for PII (using suffixed role name in condition)
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_PII) AS
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_PII AS
   (VAL CHAR) RETURNS CHAR ->
   CASE
     WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_GOVERNOR) THEN VAL
@@ -551,7 +551,7 @@ CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_PII) AS
     END;
 
 -- Create masking policy for Sensitive fields
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_SENSITIVE) AS
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_SENSITIVE AS
   (VAL CHAR) RETURNS CHAR ->
   CASE
     WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_GOVERNOR) THEN VAL
@@ -559,27 +559,27 @@ CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_SENSITIVE) AS
     END;
 
 -- Apply policies to specific columns
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN SSN SET MASKING POLICY identifier($POLICY_MASK_PII);
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN CREDITCARD SET MASKING POLICY identifier($POLICY_MASK_SENSITIVE);
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN SSN SET MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_PII;
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN CREDITCARD SET MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_SENSITIVE;
 
 -- Query the table
-SELECT SSN, CREDITCARD FROM identifier($TBL_CUSTOMER);
+SELECT SSN, CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 Now we can switch back to our Data User role from the beginning of the script. LEts see if the Data User still has access to sensitive data.
 
 ```sql
-USE ROLE identifier($ROLE_USER);
-USE WAREHOUSE identifier($WH_NAME);
-SELECT SSN, CREDITCARD FROM identifier($TBL_CUSTOMER);
+USE ROLE HRZN_DATA_USER;
+USE WAREHOUSE HRZN_WH;
+SELECT SSN, CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 The data is masked for the Data User.
 
 ```sql
-USE ROLE identifier($ROLE_GOVERNOR);
-USE SCHEMA identifier($FQ_TAG);
-USE WAREHOUSE identifier($WH_NAME);
+USE ROLE HRZN_DATA_GOVERNOR;
+USE SCHEMA HRZN_DB.TAG_SCHEMA;
+USE WAREHOUSE HRZN_WH;
 ```
 
 The Data Governor can create opt-in masking based on condition
@@ -589,17 +589,17 @@ The Data Governor can create opt-in masking based on condition
 SET POLICY_CONDITIONAL = $FQ_TAG || '.CONDITIONALPOLICYDEMO';
 
 -- Opt In masking based on condition
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_CONDITIONAL) 
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.CONDITIONALPOLICYDEMO 
    AS (phone_nbr STRING, optin STRING) RETURNS STRING ->
    CASE
       WHEN optin = 'Y' THEN phone_nbr
       ELSE '***OPT OUT***'
    END;
 
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN PHONE_NUMBER SET
-   MASKING POLICY identifier($POLICY_CONDITIONAL) USING (PHONE_NUMBER, OPTIN);
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN PHONE_NUMBER SET
+   MASKING POLICY HRZN_DB.TAG_SCHEMA.CONDITIONALPOLICYDEMO USING (PHONE_NUMBER, OPTIN);
 
-SELECT PHONE_NUMBER, OPTIN FROM identifier($TBL_CUSTOMER);
+SELECT PHONE_NUMBER, OPTIN FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 Snowflake makes it possible to streamline the masking process by grouping all these sensitive or PII columns under a common tag and apply masking for that tag.
@@ -610,18 +610,18 @@ SET TAG_PII_COL = $FQ_TAG || '.PII_COL';
 SET POLICY_PII_DATA_MASK = $FQ_TAG || '.PII_DATA_MASK';
 
 -- Create a Tag
-CREATE OR REPLACE TAG identifier($TAG_PII_COL) ALLOWED_VALUES 'PII-DATA','NON-PII';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.PII_COL ALLOWED_VALUES 'PII-DATA','NON-PII';
 
 -- Apply to the table
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN LAST_NAME SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN BIRTHDATE SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STREET_ADDRESS SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN CITY SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STATE SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN ZIP SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN LAST_NAME SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN BIRTHDATE SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STREET_ADDRESS SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN CITY SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STATE SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN ZIP SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
 
 -- Create Masking Policy (using suffixed role name in condition)
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_PII_DATA_MASK) AS (VAL STRING) RETURNS STRING ->
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.PII_DATA_MASK AS (VAL STRING) RETURNS STRING ->
 CASE
 WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN($TAG_PII_COL) = 'PII-DATA' 
     AND CURRENT_ROLE() NOT IN ($ROLE_GOVERNOR, 'ACCOUNTADMIN') 
@@ -630,23 +630,23 @@ ELSE VAL
 END;
 
 -- Apply Masking policy to the tag
-ALTER TAG identifier($TAG_PII_COL) SET MASKING POLICY identifier($POLICY_PII_DATA_MASK);
+ALTER TAG HRZN_DB.TAG_SCHEMA.PII_COL SET MASKING POLICY HRZN_DB.TAG_SCHEMA.PII_DATA_MASK;
 ```
 
 Lets switch back to the Data User role and Check if the sensitive data is visible or masked
 
 ```sql
-USE ROLE identifier($ROLE_USER);
+USE ROLE HRZN_DATA_USER;
 SELECT FIRST_NAME, LAST_NAME, STREET_ADDRESS, CITY, STATE, ZIP 
-FROM identifier($TBL_CUSTOMER);
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 When we switch back to the Data Governor role we can see that the data is still present, just masked when required.
 
 ```sql
-USE ROLE identifier($ROLE_GOVERNOR);
+USE ROLE HRZN_DATA_GOVERNOR;
 SELECT FIRST_NAME, LAST_NAME, STREET_ADDRESS, CITY, STATE, ZIP 
-FROM identifier($TBL_CUSTOMER);
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 #### **Row-Access Policies**
@@ -657,25 +657,25 @@ First, We need to unset any exising masking policies on the column
 
 ```sql
 -- We need to unset any existing masking policies on the column
-USE ROLE identifier($ROLE_GOVERNOR);
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STATE UNSET TAG identifier($TAG_PII_COL);
+USE ROLE HRZN_DATA_GOVERNOR;
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STATE UNSET TAG HRZN_DB.TAG_SCHEMA.PII_COL;
 ```
 
 Lets see what the data user can see.
 
 ```sql
-USE ROLE identifier($ROLE_USER);
-SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM identifier($TBL_CUSTOMER);
+USE ROLE HRZN_DATA_USER;
+SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 We will need to use row level security to show only the Data for Massachusetts.
 
 ```sql
-USE ROLE identifier($ROLE_GOVERNOR);
+USE ROLE HRZN_DATA_GOVERNOR;
 -- Let's use a mapping table ROW_POLICY_MAP to store the mapping 
 -- between the users and the data that they have access to
 -- For our lab, the mapping for the user is in the table ROW_POLICY_MAP
-SELECT * FROM identifier($TBL_ROW_POLICY_MAP); 
+SELECT * FROM HRZN_DB.TAG_SCHEMA.ROW_POLICY_MAP; 
 ```
 
 Note: Snowflake supports row-level security through the use of Row Access Policies to determine which rows to return in the query result. The row access policy can be relatively simple to allow one particular role to view rows, or be more complex to include a mapping table in the policy definition to determine access to rows in the query result.
@@ -685,13 +685,13 @@ Note: Snowflake supports row-level security through the use of Row Access Polici
 SET POLICY_CUSTOMER_STATE = $FQ_TAG || '.CUSTOMER_STATE_RESTRICTIONS';
 
 -- Create Row Access Policy (using suffixed role names in condition)
-CREATE OR REPLACE ROW ACCESS POLICY identifier($POLICY_CUSTOMER_STATE)
+CREATE OR REPLACE ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_STATE_RESTRICTIONS
     AS (STATE STRING) RETURNS BOOLEAN ->
        CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_ENGINEER, $ROLE_GOVERNOR) -- list of roles that will not be subject to the policy
         OR EXISTS -- this clause references our mapping table from above to handle the row level filtering
             (
             SELECT rp.ROLE
-                FROM identifier($TBL_ROW_POLICY_MAP) rp
+                FROM HRZN_DB.TAG_SCHEMA.ROW_POLICY_MAP rp
             WHERE 1=1
                 AND rp.ROLE = CURRENT_ROLE()
                 AND rp.STATE_VISIBILITY = STATE
@@ -699,15 +699,15 @@ CREATE OR REPLACE ROW ACCESS POLICY identifier($POLICY_CUSTOMER_STATE)
 COMMENT = 'Policy to limit rows returned based on mapping table of ROLE and STATE';
 
 -- Let's now apply the Row Access Policy to our State column in the Customer table
-ALTER TABLE identifier($TBL_CUSTOMER)
-    ADD ROW ACCESS POLICY identifier($POLICY_CUSTOMER_STATE) ON (STATE);
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER
+    ADD ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_STATE_RESTRICTIONS ON (STATE);
 ```
 
 With the policy successfully applied, let's test it using the Data User Role
 
 ```sql
-USE ROLE identifier($ROLE_USER);
-SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM identifier($TBL_CUSTOMER);
+USE ROLE HRZN_DATA_USER;
+SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
 Now that we've protected our data and our users can access it appropriately to address their questions, let's move on to explore the Governor Admin role.
@@ -720,10 +720,10 @@ Within this step, we will walk through leveraging Access History to find when th
 Note: Access History latency is up to 3 hours. So, some of the queries below may not have results right away.
 
 ```sql
-USE ROLE identifier($ROLE_IT_ADMIN);
-USE DATABASE identifier($DB_NAME);
-USE SCHEMA identifier($FQ_SCH);
-USE WAREHOUSE identifier($WH_NAME);
+USE ROLE HRZN_IT_ADMIN;
+USE DATABASE HRZN_DB;
+USE SCHEMA HRZN_DB.HRZN_SCH;
+USE WAREHOUSE HRZN_WH;
 ```
 
 Let's check out how our data is being accessed
@@ -736,7 +736,7 @@ SELECT
     COUNT(DISTINCT query_id) AS number_of_queries
 FROM snowflake.account_usage.access_history,
 LATERAL FLATTEN (input => direct_objects_accessed)
-WHERE object_name ILIKE $DB_NAME || '%'
+WHERE object_name ILIKE 'HRZN_DB' || '%'
 GROUP BY object_name
 ORDER BY number_of_queries DESC;
 ```
@@ -754,7 +754,7 @@ SELECT
     MAX(query_start_time) AS last_query_start_time
 FROM snowflake.account_usage.access_history,
 LATERAL FLATTEN (input => direct_objects_accessed)
-WHERE object_name ILIKE $DB_NAME || '%'
+WHERE object_name ILIKE 'HRZN_DB' || '%'
 GROUP BY object_name, query_type
 ORDER BY object_name, number_of_queries DESC;
 
@@ -768,7 +768,7 @@ JOIN snowflake.account_usage.access_history AS ah
 ON qh.query_id = ah.query_id,
     LATERAL FLATTEN(input => ah.base_objects_accessed)
 WHERE query_type = 'SELECT' AND
-    value:objectName = $TBL_CUSTOMER AND
+    value:objectName = 'HRZN_DB.HRZN_SCH.CUSTOMER' AND
     start_time > dateadd(day, -90, current_date());
 
 -- last few "write" queries
@@ -781,7 +781,7 @@ JOIN snowflake.account_usage.access_history AS ah
 ON qh.query_id = ah.query_id,
     LATERAL FLATTEN(input => ah.base_objects_accessed)
 WHERE query_type != 'SELECT' AND
-    value:objectName = $TBL_CUSTOMER AND
+    value:objectName = 'HRZN_DB.HRZN_SCH.CUSTOMER' AND
     start_time > dateadd(day, -90, current_date());
 ```
 
@@ -813,7 +813,7 @@ SELECT
 FROM
   SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY q 
 WHERE
-  q.QUERY_TEXT ILIKE '%' || $TBL_CUSTOMER || '%'
+  q.QUERY_TEXT ILIKE '%' || 'HRZN_DB.HRZN_SCH.CUSTOMER' || '%'
 ORDER BY
   q.START_TIME DESC;
 ```
@@ -869,7 +869,7 @@ FROM
       ) baseSources
 ) col_lin
    WHERE
-       (SOURCE_OBJECT_NAME = $TBL_CUSTOMER OR TARGET_OBJECT_NAME = $TBL_CUSTOMER)
+       (SOURCE_OBJECT_NAME = 'HRZN_DB.HRZN_SCH.CUSTOMER' OR TARGET_OBJECT_NAME = 'HRZN_DB.HRZN_SCH.CUSTOMER')
     AND
         (SOURCE_COLUMN_NAME IN (
                 SELECT
@@ -879,8 +879,8 @@ FROM
                     SELECT
                         *
                     FROM TABLE(
-                      identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
-                        $TBL_CUSTOMER,
+                      identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+                        'HRZN_DB.HRZN_SCH.CUSTOMER',
                         'table'
                       )
                     )
@@ -896,8 +896,8 @@ FROM
                     SELECT
                         *
                     FROM TABLE(
-                      identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
-                        $TBL_CUSTOMER,
+                      identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+                        'HRZN_DB.HRZN_SCH.CUSTOMER',
                         'table'
                       )
                     )
@@ -917,7 +917,7 @@ FROM snowflake.account_usage.access_history,
 LATERAL FLATTEN (input => base_objects_accessed) base,
 LATERAL FLATTEN (input => direct_objects_accessed) direct
 WHERE 1=1
-    AND object_name ILIKE $DB_NAME || '%'
+    AND object_name ILIKE 'HRZN_DB' || '%'
     AND object_name <> direct.value:"objectName"::STRING -- base object is not direct object
 GROUP BY object_name
 ORDER BY number_of_queries DESC;
