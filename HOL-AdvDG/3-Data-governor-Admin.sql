@@ -25,16 +25,15 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 ----------------------------------------------------------------------------------*/
 
 -- Set the user suffix (must match 0_setup.sql)
-SET USER_SUFFIX = CURRENT_USER();
 
 -- Define role names with user suffix
-SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN';
 
 -- Define warehouse name with user suffix
-SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+SET WH_NAME = 'HRZN_WH';
 
 -- Define database and schema names with user suffix
-SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+SET DB_NAME = 'HRZN_DB';
 SET SCH_NAME = 'HRZN_SCH';
 
 -- Define fully qualified schema path

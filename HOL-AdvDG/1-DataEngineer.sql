@@ -39,27 +39,24 @@ In Summary:
 
 
 /*----------------------------------------------------------------------------------
- U S E R   S U F F I X   V A R I A B L E S
+ V A R I A B L E S
  
- All objects in this lab are suffixed with the current user's name to allow
- multiple users to run the lab concurrently without naming conflicts.
 ----------------------------------------------------------------------------------*/
 
--- Set the user suffix (must match 0_setup.sql)
-SET USER_SUFFIX = CURRENT_USER();
+-- Variables must match 0_setup.sql
 
 -- Define role names with user suffix
-SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER_' || $USER_SUFFIX;
-SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR_' || $USER_SUFFIX;
-SET ROLE_USER = 'HRZN_DATA_USER_' || $USER_SUFFIX;
-SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
-SET ROLE_ANALYST = 'HRZN_DATA_ANALYST_' || $USER_SUFFIX;
+SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER';
+SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR';
+SET ROLE_USER = 'HRZN_DATA_USER';
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN';
+SET ROLE_ANALYST = 'HRZN_DATA_ANALYST';
 
--- Define warehouse name with user suffix
-SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+-- Define warehouse name
+SET WH_NAME = 'HRZN_WH';
 
--- Define database and schema names with user suffix
-SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+-- Define database and schema names
+SET DB_NAME = 'HRZN_DB';
 SET SCH_NAME = 'HRZN_SCH';
 
 -- Define fully qualified schema path
@@ -176,7 +173,7 @@ GRANT ALL ON WAREHOUSE identifier($WH_NAME) TO ROLE identifier($ROLE_ANALYST);
 GRANT OPERATE, USAGE ON WAREHOUSE identifier($WH_NAME) TO ROLE identifier($ROLE_ANALYST);
 
 -- now we can GRANT our Role to the User we are currently logged in as
-GRANT ROLE identifier($ROLE_ANALYST) TO USER identifier($USER_SUFFIX);
+GRANT ROLE identifier($ROLE_ANALYST) TO USER CURRENT_USER();
 
 --Lets try and access the CUSTOMER TABLE.
 SELECT * FROM identifier($TBL_CUSTOMER);

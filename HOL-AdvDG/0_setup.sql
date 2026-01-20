@@ -18,28 +18,22 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 
 
 /*----------------------------------------------------------------------------------
- U S E R   S U F F I X   V A R I A B L E S
- 
- All objects in this lab are suffixed with the current user's name to allow
- multiple users to run the lab concurrently without naming conflicts.
+ V A R I A B L E S
 ----------------------------------------------------------------------------------*/
 
--- Set the user suffix (will be appended to all object names)
-SET USER_SUFFIX = CURRENT_USER();
-SELECT $USER_SUFFIX AS YOUR_USER_SUFFIX;
 
--- Define all role names with user suffix
-SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER_' || $USER_SUFFIX;
-SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR_' || $USER_SUFFIX;
-SET ROLE_USER = 'HRZN_DATA_USER_' || $USER_SUFFIX;
-SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
-SET ROLE_ANALYST = 'HRZN_DATA_ANALYST_' || $USER_SUFFIX;
+-- Define all role names
+SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER';
+SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR';
+SET ROLE_USER = 'HRZN_DATA_USER';
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN';
+SET ROLE_ANALYST = 'HRZN_DATA_ANALYST';
 
--- Define warehouse name with user suffix
-SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+-- Define warehouse name
+SET WH_NAME = 'HRZN_WH';
 
--- Define database and schema names with user suffix
-SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+-- Define database and schema names
+SET DB_NAME = 'HRZN_DB';
 SET SCH_NAME = 'HRZN_SCH';
 SET SCH_CLASSIFIERS = 'CLASSIFIERS';
 SET SCH_TAG = 'TAG_SCHEMA';
@@ -64,7 +58,7 @@ SET STAGE_CUSTOMER_NY = $FQ_SCH || '.CUSTOMERNYSTAGE';
 
 -- Display all variables for verification
 SELECT 
-    $USER_SUFFIX AS USER_SUFFIX,
+    
     $ROLE_ENGINEER AS ROLE_ENGINEER,
     $ROLE_GOVERNOR AS ROLE_GOVERNOR,
     $ROLE_USER AS ROLE_USER,
@@ -91,10 +85,10 @@ GRANT ROLE identifier($ROLE_USER) TO ROLE SYSADMIN;
 GRANT ROLE identifier($ROLE_IT_ADMIN) TO ROLE SYSADMIN;
 
 -- Grant roles to current user
-GRANT ROLE identifier($ROLE_ENGINEER) TO USER identifier($USER_SUFFIX);
-GRANT ROLE identifier($ROLE_GOVERNOR) TO USER identifier($USER_SUFFIX);
-GRANT ROLE identifier($ROLE_USER) TO USER identifier($USER_SUFFIX);
-GRANT ROLE identifier($ROLE_IT_ADMIN) TO USER identifier($USER_SUFFIX);
+GRANT ROLE identifier($ROLE_ENGINEER) TO USER CURRENT_USER();
+GRANT ROLE identifier($ROLE_GOVERNOR) TO USER CURRENT_USER();
+GRANT ROLE identifier($ROLE_USER) TO USER CURRENT_USER();
+GRANT ROLE identifier($ROLE_IT_ADMIN) TO USER CURRENT_USER();
 
 
 /*----------------------------------------------------------------------------------
@@ -158,9 +152,9 @@ COMMENT = 'Schema containing Tags';
 CREATE OR REPLACE TABLE identifier($TBL_ROW_POLICY_MAP)
     (role STRING, state_visibility STRING);
 
--- Insert role mapping (using the suffixed role name)
+-- Insert role mapping
 INSERT INTO identifier($TBL_ROW_POLICY_MAP)
-    VALUES ($ROLE_USER, 'MA'); 
+    VALUES ('HRZN_DATA_USER', 'MA'); 
 
 -- Create Schema for Security Policies
 CREATE OR REPLACE SCHEMA identifier($FQ_POLICIES)
@@ -315,6 +309,6 @@ COPY INTO @identifier($STAGE_CUSTOMER_NY) FROM identifier($TBL_CUSTOMER_ORDER_SU
 /*----------------------------------------------------------------------------------
  V E R I F Y   S E T U P
 ----------------------------------------------------------------------------------*/
-SELECT 'Setup complete for user: ' || $USER_SUFFIX AS STATUS;
+SELECT 'Setup complete' AS STATUS;
 SELECT COUNT(*) AS CUSTOMER_COUNT FROM identifier($TBL_CUSTOMER);
 SELECT COUNT(*) AS ORDER_COUNT FROM identifier($TBL_CUSTOMER_ORDERS);

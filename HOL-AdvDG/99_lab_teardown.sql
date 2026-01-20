@@ -17,27 +17,25 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
 
 /*----------------------------------------------------------------------------------
- U S E R   S U F F I X   V A R I A B L E S
+ V A R I A B L E S
  
- All objects in this lab are suffixed with the current user's name.
  This teardown script will clean up all objects for the current user.
 ----------------------------------------------------------------------------------*/
 
--- Set the user suffix (must match 0_setup.sql)
-SET USER_SUFFIX = CURRENT_USER();
+-- Variables must match 0_setup.sql
 
 -- Define role names with user suffix
-SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER_' || $USER_SUFFIX;
-SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR_' || $USER_SUFFIX;
-SET ROLE_USER = 'HRZN_DATA_USER_' || $USER_SUFFIX;
-SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
-SET ROLE_ANALYST = 'HRZN_DATA_ANALYST_' || $USER_SUFFIX;
+SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER';
+SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR';
+SET ROLE_USER = 'HRZN_DATA_USER';
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN';
+SET ROLE_ANALYST = 'HRZN_DATA_ANALYST';
 
--- Define warehouse name with user suffix
-SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+-- Define warehouse name
+SET WH_NAME = 'HRZN_WH';
 
--- Define database and schema names with user suffix
-SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+-- Define database and schema names
+SET DB_NAME = 'HRZN_DB';
 SET SCH_NAME = 'HRZN_SCH';
 SET SCH_CLASSIFIERS = 'CLASSIFIERS';
 SET SCH_TAG = 'TAG_SCHEMA';
@@ -60,7 +58,7 @@ SET TBL_ROW_POLICY_MAP = $FQ_TAG || '.ROW_POLICY_MAP';
 /********************/
 
 -- Display what will be dropped
-SELECT 'Tearing down lab for user: ' || $USER_SUFFIX AS STATUS;
+SELECT 'Tearing down lab' AS STATUS;
 
 
 -- Drop medallion tables first (owned by ENGINEER)
@@ -119,4 +117,4 @@ DROP WAREHOUSE IF EXISTS identifier($WH_NAME);
 
 
 -- Confirm teardown complete
-SELECT 'Lab teardown complete for user: ' || $USER_SUFFIX AS STATUS;
+SELECT 'Lab teardown complete' AS STATUS;

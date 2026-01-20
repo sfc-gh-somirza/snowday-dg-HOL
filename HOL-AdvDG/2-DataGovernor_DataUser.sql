@@ -18,26 +18,25 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
 
 /*----------------------------------------------------------------------------------
- U S E R   S U F F I X   V A R I A B L E S
+ V A R I A B L E S
  
  All objects in this lab are suffixed with the current user's name to allow
  multiple users to run the lab concurrently without naming conflicts.
 ----------------------------------------------------------------------------------*/
 
--- Set the user suffix (must match 0_setup.sql)
-SET USER_SUFFIX = CURRENT_USER();
+-- Variables must match 0_setup.sql
 
 -- Define role names with user suffix
-SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER_' || $USER_SUFFIX;
-SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR_' || $USER_SUFFIX;
-SET ROLE_USER = 'HRZN_DATA_USER_' || $USER_SUFFIX;
-SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
+SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER';
+SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR';
+SET ROLE_USER = 'HRZN_DATA_USER';
+SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN';
 
--- Define warehouse name with user suffix
-SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
+-- Define warehouse name
+SET WH_NAME = 'HRZN_WH';
 
--- Define database and schema names with user suffix
-SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
+-- Define database and schema names
+SET DB_NAME = 'HRZN_DB';
 SET SCH_NAME = 'HRZN_SCH';
 SET SCH_CLASSIFIERS = 'CLASSIFIERS';
 SET SCH_TAG = 'TAG_SCHEMA';
@@ -312,7 +311,7 @@ FROM TABLE(INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS($TBL_CUSTOMER,'table'))
 CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_PII) AS
   (VAL CHAR) RETURNS CHAR ->
   CASE
-    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_GOVERNOR) THEN VAL
+    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_GOVERNOR') THEN VAL
       ELSE '***PII MASKED***'
     END;
 
@@ -320,7 +319,7 @@ CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_PII) AS
 CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_SENSITIVE) AS
   (VAL CHAR) RETURNS CHAR ->
   CASE
-    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_GOVERNOR) THEN VAL
+    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_GOVERNOR') THEN VAL
       ELSE '***SENSITIVE***'
     END;
 
@@ -495,7 +494,7 @@ SELECT * FROM identifier($TBL_ROW_POLICY_MAP);
 -- Create Row Access Policy (using suffixed role names in condition)
 CREATE OR REPLACE ROW ACCESS POLICY identifier($POLICY_CUSTOMER_STATE)
     AS (STATE STRING) RETURNS BOOLEAN ->
-       CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_ENGINEER, $ROLE_GOVERNOR) -- list of roles that will not be subject to the policy
+       CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_ENGINEER', 'HRZN_DATA_GOVERNOR') -- list of roles that will not be subject to the policy
         OR EXISTS -- this clause references our mapping table from above to handle the row level filtering
             (
             SELECT rp.ROLE
