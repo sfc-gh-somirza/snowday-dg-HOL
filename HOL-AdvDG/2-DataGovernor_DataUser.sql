@@ -18,54 +18,20 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
 
 /*----------------------------------------------------------------------------------
- U S E R   S U F F I X   V A R I A B L E S
+ V A R I A B L E S
  
  All objects in this lab are suffixed with the current user's name to allow
  multiple users to run the lab concurrently without naming conflicts.
 ----------------------------------------------------------------------------------*/
 
--- Set the user suffix (must match 0_setup.sql)
-SET USER_SUFFIX = CURRENT_USER();
 
--- Define role names with user suffix
-SET ROLE_ENGINEER = 'HRZN_DATA_ENGINEER_' || $USER_SUFFIX;
-SET ROLE_GOVERNOR = 'HRZN_DATA_GOVERNOR_' || $USER_SUFFIX;
-SET ROLE_USER = 'HRZN_DATA_USER_' || $USER_SUFFIX;
-SET ROLE_IT_ADMIN = 'HRZN_IT_ADMIN_' || $USER_SUFFIX;
 
--- Define warehouse name with user suffix
-SET WH_NAME = 'HRZN_WH_' || $USER_SUFFIX;
 
--- Define database and schema names with user suffix
-SET DB_NAME = 'HRZN_DB_' || $USER_SUFFIX;
-SET SCH_NAME = 'HRZN_SCH';
-SET SCH_CLASSIFIERS = 'CLASSIFIERS';
-SET SCH_TAG = 'TAG_SCHEMA';
 
--- Define fully qualified schema paths
-SET FQ_SCH = $DB_NAME || '.' || $SCH_NAME;
-SET FQ_CLASSIFIERS = $DB_NAME || '.' || $SCH_CLASSIFIERS;
-SET FQ_TAG = $DB_NAME || '.' || $SCH_TAG;
 
--- Define table names (fully qualified)
-SET TBL_CUSTOMER = $FQ_SCH || '.CUSTOMER';
-SET TBL_ROW_POLICY_MAP = $FQ_TAG || '.ROW_POLICY_MAP';
 
--- Define tag names (fully qualified)
-SET TAG_COST_CENTER = $FQ_TAG || '.COST_CENTER';
-SET TAG_CONFIDENTIAL = $FQ_TAG || '.CONFIDENTIAL';
-SET TAG_PII_TYPE = $FQ_TAG || '.PII_TYPE';
-SET TAG_PII_COL = $FQ_TAG || '.PII_COL';
 
--- Define policy names (fully qualified)
-SET POLICY_MASK_PII = $FQ_TAG || '.MASK_PII';
-SET POLICY_MASK_SENSITIVE = $FQ_TAG || '.MASK_SENSITIVE';
-SET POLICY_CONDITIONAL = $FQ_TAG || '.CONDITIONALPOLICYDEMO';
-SET POLICY_PII_DATA_MASK = $FQ_TAG || '.PII_DATA_MASK';
-SET POLICY_CUSTOMER_STATE = $FQ_TAG || '.CUSTOMER_STATE_RESTRICTIONS';
 
--- Define classifier names (fully qualified)
-SET CLASSIFIER_CREDITCARD = $FQ_CLASSIFIERS || '.CREDITCARD';
 
 
 /*************************************************/
@@ -73,10 +39,10 @@ SET CLASSIFIER_CREDITCARD = $FQ_CLASSIFIERS || '.CREDITCARD';
 /* D A T A      U S E R      R O L E */
 /*************************************************/
 /*************************************************/
-USE ROLE identifier($ROLE_USER);
-USE WAREHOUSE identifier($WH_NAME);
-USE DATABASE identifier($DB_NAME);
-USE SCHEMA identifier($FQ_SCH);
+USE ROLE HRZN_DATA_USER;
+USE WAREHOUSE HRZN_WH;
+USE DATABASE HRZN_DB;
+USE SCHEMA HRZN_DB.HRZN_SCH;
 
 
 
@@ -112,7 +78,7 @@ Step - Discovery with Snowflake Horizon - Universal Search
 
 -- Now, Let's look at the customer details
 SELECT FIRST_NAME, LAST_NAME, STREET_ADDRESS, STATE, CITY, ZIP, PHONE_NUMBER, EMAIL, SSN, BIRTHDATE, CREDITCARD
-FROM identifier($TBL_CUSTOMER)
+FROM HRZN_DB.HRZN_SCH.CUSTOMER
 SAMPLE (100 ROWS);
 
 -- there is a lot of PII and sensitive data that needs to be protected
@@ -129,7 +95,7 @@ SAMPLE (100 ROWS);
 /* D A T A      G O V E R N O R      R O L E */
 /*************************************************/
 /*************************************************/
-USE ROLE identifier($ROLE_GOVERNOR);
+USE ROLE HRZN_DATA_GOVERNOR;
 
 /*----------------------------------------------------------------------------------
 Step - Sensitive Data Classification
@@ -159,15 +125,14 @@ Step - Sensitive Data Classification
 --Databases -> Your DB -> HRZN_SCH --> Click "..." -> Classify and Tag Sensitive Data
 
 -- let's use SYSTEM$CLASSIFY to classify the data in the CUSTOMER table within the HRZN_SCH schema
-CALL SYSTEM$CLASSIFY($TBL_CUSTOMER, {'auto_tag': true});
+CALL SYSTEM$CLASSIFY('HRZN_DB.HRZN_SCH.CUSTOMER', {'auto_tag': true});
 
 
 -- now let's view the new Tags that Snowflake applied automatically to the CUSTOMER table via Data Classification
 SELECT TAG_DATABASE, TAG_SCHEMA, OBJECT_NAME, COLUMN_NAME, TAG_NAME, TAG_VALUE
-FROM TABLE(
-  identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
-    $TBL_CUSTOMER,
-    'table'
+FROM TABLE(HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS(
+  'HRZN_DB.HRZN_SCH.CUSTOMER', 
+  'table'
 ));
 
 
@@ -175,11 +140,11 @@ FROM TABLE(
 --Databases -> Your DB -> HRZN_SCH --> Click "..." -> Classify and Tag Sensitive Data
 
 -- let's use SYSTEM$CLASSIFY to classify the data in the tables within the HRZN_SCH schema
-CALL SYSTEM$CLASSIFY_SCHEMA($FQ_SCH, {'auto_tag': true});
+CALL SYSTEM$CLASSIFY_SCHEMA('HRZN_DB.HRZN_SCH', {'auto_tag': true});
 
 
 -- once again, let's view the Tags applied within the Schema
-SELECT * FROM TABLE(identifier($DB_NAME || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')($TBL_CUSTOMER,'table'));
+SELECT * FROM TABLE(HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS( 'HRZN_DB.HRZN_SCH.CUSTOMER', 'TABLE' ));
 
 
 
@@ -195,10 +160,10 @@ Step - Sensitive Custom Classification
 -- C U S T O M   C L A S S I F I C A T I O N --
 /****************************************************/
 --As a best practice, Lets use a separate schema to store all the customer classifiers
-USE SCHEMA identifier($FQ_CLASSIFIERS);
+USE SCHEMA HRZN_DB.CLASSIFIERS;
 
 --Create a classifier for the credit card data
-CREATE OR REPLACE SNOWFLAKE.DATA_PRIVACY.CUSTOM_CLASSIFIER identifier($CLASSIFIER_CREDITCARD)();
+CREATE OR REPLACE SNOWFLAKE.DATA_PRIVACY.CUSTOM_CLASSIFIER HRZN_DB.CLASSIFIERS.CREDITCARD();
 
 SHOW SNOWFLAKE.DATA_PRIVACY.CUSTOM_CLASSIFIER;
 
@@ -210,13 +175,15 @@ CALL CREDITCARD!ADD_REGEX('AMX_PAYMENT_CARD','IDENTIFIER','^3[4-7][0-9]{13}$');
 SELECT CREDITCARD!LIST();
 
 --OPTIONAL: Lets check if table has the data that matches the credit card number pattern
-SELECT CREDITCARD FROM identifier($TBL_CUSTOMER) WHERE CREDITCARD REGEXP '^3[4-7][0-9]{13}$';
+SELECT CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER WHERE CREDITCARD REGEXP '^3[4-7][0-9]{13}$';
 
 --Now, classify the data with custom classifier
-CALL SYSTEM$CLASSIFY($TBL_CUSTOMER, {'auto_tag': true, 'custom_classifiers': [$CLASSIFIER_CREDITCARD]});
-
+CALL SYSTEM$CLASSIFY(
+  'HRZN_DB.HRZN_SCH.CUSTOMER',
+  {'auto_tag': true, 'custom_classifiers': ['HRZN_DB.CLASSIFIERS.CREDITCARD']}
+);
 --This statement shows if a column is classified as a particular tag
-SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category', $TBL_CUSTOMER || '.CREDITCARD', 'column');
+SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category', 'HRZN_DB.HRZN_SCH.CUSTOMER' || '.CREDITCARD', 'column');
 
 
 
@@ -242,36 +209,36 @@ SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category', $TBL_CUSTOMER || '.CRE
  automatically protected by the conditions in the masking policy.
 **/
 
-USE SCHEMA identifier($FQ_TAG);
+USE SCHEMA HRZN_DB.TAG_SCHEMA;
 
 --Step : Create TAGS
 --Create cost_center tag and add comment
-CREATE OR REPLACE TAG identifier($TAG_COST_CENTER) ALLOWED_VALUES 'Sales','Marketing','Support';
-ALTER TAG identifier($TAG_COST_CENTER) SET COMMENT = 'Respective Cost center for chargeback';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.COST_CENTER ALLOWED_VALUES 'Sales','Marketing','Support';
+ALTER TAG HRZN_DB.TAG_SCHEMA.COST_CENTER SET COMMENT = 'Respective Cost center for chargeback';
 
 --Create tag for sensitive datasets and add comments
-CREATE OR REPLACE TAG identifier($TAG_CONFIDENTIAL) ALLOWED_VALUES 'Sensitive','Restricted','Highly Confidential';
-ALTER TAG identifier($TAG_CONFIDENTIAL) SET COMMENT = 'Confidential information';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.CONFIDENTIAL ALLOWED_VALUES 'Sensitive','Restricted','Highly Confidential';
+ALTER TAG HRZN_DB.TAG_SCHEMA.CONFIDENTIAL SET COMMENT = 'Confidential information';
                                       
-CREATE OR REPLACE TAG identifier($TAG_PII_TYPE) ALLOWED_VALUES 'Email','Phone Number','Last Name';
-ALTER TAG identifier($TAG_PII_TYPE) SET COMMENT = 'PII Columns';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.PII_TYPE ALLOWED_VALUES 'Email','Phone Number','Last Name';
+ALTER TAG HRZN_DB.TAG_SCHEMA.PII_TYPE SET COMMENT = 'PII Columns';
 
 
 
 
 --Step : Apply tags
 --Apply tag on warehouse
-ALTER WAREHOUSE identifier($WH_NAME) SET TAG identifier($TAG_COST_CENTER) = 'Sales';
+ALTER WAREHOUSE HRZN_WH SET TAG HRZN_DB.TAG_SCHEMA.COST_CENTER = 'Sales';
 
 --Apply tags at the table and column level
 --Table Level
-ALTER TABLE identifier($TBL_CUSTOMER) SET TAG identifier($TAG_CONFIDENTIAL) = 'Sensitive';  
-ALTER TABLE identifier($TBL_CUSTOMER) SET TAG identifier($TAG_COST_CENTER) = 'Sales';  
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER SET TAG HRZN_DB.TAG_SCHEMA.CONFIDENTIAL = 'Sensitive';  
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER SET TAG HRZN_DB.TAG_SCHEMA.COST_CENTER = 'Sales';  
 
 --Column Level
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY EMAIL SET TAG identifier($TAG_PII_TYPE) = 'Email';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY PHONE_NUMBER SET TAG identifier($TAG_PII_TYPE) = 'Phone Number';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY LAST_NAME SET TAG identifier($TAG_PII_TYPE) = 'Last Name';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY EMAIL SET TAG HRZN_DB.TAG_SCHEMA.PII_TYPE = 'Email';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY PHONE_NUMBER SET TAG HRZN_DB.TAG_SCHEMA.PII_TYPE = 'Phone Number';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY LAST_NAME SET TAG HRZN_DB.TAG_SCHEMA.PII_TYPE = 'Last Name';
 
 
 -- Query account usage view to check tags and reference
@@ -290,7 +257,7 @@ SELECT
     tag_name,
     column_name,
     tag_value
-FROM TABLE(INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS($TBL_CUSTOMER,'table'));
+FROM TABLE(INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS('HRZN_DB.HRZN_SCH.CUSTOMER','table'));
 
 
 
@@ -309,27 +276,27 @@ FROM TABLE(INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS($TBL_CUSTOMER,'table'))
 -- Column-Level Security + Dynamic Data Masking  --
 /****************************************************/
 --Create masking policy for PII (using suffixed role name in condition)
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_PII) AS
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_PII AS
   (VAL CHAR) RETURNS CHAR ->
   CASE
-    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_GOVERNOR) THEN VAL
+    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_GOVERNOR') THEN VAL
       ELSE '***PII MASKED***'
     END;
 
 --Create masking policy for Sensitive fields
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_MASK_SENSITIVE) AS
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_SENSITIVE AS
   (VAL CHAR) RETURNS CHAR ->
   CASE
-    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_GOVERNOR) THEN VAL
+    WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_GOVERNOR') THEN VAL
       ELSE '***SENSITIVE***'
     END;
 
 --Apply policies to specific columns
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN SSN SET MASKING POLICY identifier($POLICY_MASK_PII);
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN CREDITCARD SET MASKING POLICY identifier($POLICY_MASK_SENSITIVE);
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN SSN SET MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_PII;
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN CREDITCARD SET MASKING POLICY HRZN_DB.TAG_SCHEMA.MASK_SENSITIVE;
 
 --Query the table
-SELECT SSN, CREDITCARD FROM identifier($TBL_CUSTOMER);
+SELECT SSN, CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
 
@@ -339,10 +306,10 @@ SELECT SSN, CREDITCARD FROM identifier($TBL_CUSTOMER);
 /* D A T A      U S E R      R O L E */
 /*************************************************/
 /*************************************************/
-USE ROLE identifier($ROLE_USER);
-USE WAREHOUSE identifier($WH_NAME);
+USE ROLE HRZN_DATA_USER;
+USE WAREHOUSE HRZN_WH;
 
-SELECT SSN, CREDITCARD FROM identifier($TBL_CUSTOMER);
+SELECT SSN, CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
 
@@ -352,23 +319,23 @@ SELECT SSN, CREDITCARD FROM identifier($TBL_CUSTOMER);
 /* D A T A      G O V E R N O R      R O L E */
 /*************************************************/
 /*************************************************/
-USE ROLE identifier($ROLE_GOVERNOR);
-USE SCHEMA identifier($FQ_TAG);
-USE WAREHOUSE identifier($WH_NAME);
+USE ROLE HRZN_DATA_GOVERNOR;
+USE SCHEMA HRZN_DB.TAG_SCHEMA;
+USE WAREHOUSE HRZN_WH;
 
 
 --Opt In masking based on condition
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_CONDITIONAL) 
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.CONDITIONALPOLICYDEMO 
    AS (phone_nbr STRING, optin STRING) RETURNS STRING ->
    CASE
       WHEN optin = 'Y' THEN phone_nbr
       ELSE '***OPT OUT***'
    END;
 
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN PHONE_NUMBER SET
-   MASKING POLICY identifier($POLICY_CONDITIONAL) USING (PHONE_NUMBER, OPTIN);
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN PHONE_NUMBER SET
+   MASKING POLICY HRZN_DB.TAG_SCHEMA.CONDITIONALPOLICYDEMO USING (PHONE_NUMBER, OPTIN);
 
-SELECT PHONE_NUMBER, OPTIN FROM identifier($TBL_CUSTOMER);
+SELECT PHONE_NUMBER, OPTIN FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
 
@@ -385,29 +352,29 @@ SELECT PHONE_NUMBER, OPTIN FROM identifier($TBL_CUSTOMER);
 /****************************************************/
 
 --Create a Tag
-CREATE OR REPLACE TAG identifier($TAG_PII_COL) ALLOWED_VALUES 'PII-DATA','NON-PII';
+CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.PII_COL ALLOWED_VALUES 'PII-DATA','NON-PII';
 
 --Apply to the table
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN LAST_NAME SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN BIRTHDATE SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STREET_ADDRESS SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN CITY SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STATE SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN ZIP SET TAG identifier($TAG_PII_COL) = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN LAST_NAME SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN BIRTHDATE SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STREET_ADDRESS SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN CITY SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STATE SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN ZIP SET TAG HRZN_DB.TAG_SCHEMA.PII_COL = 'PII-DATA';
 
 
 --Create Masking Policy (using suffixed role name in condition)
-CREATE OR REPLACE MASKING POLICY identifier($POLICY_PII_DATA_MASK) AS (VAL STRING) RETURNS STRING ->
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.PII_DATA_MASK AS (VAL STRING) RETURNS STRING ->
 CASE
-WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN($TAG_PII_COL) = 'PII-DATA' 
-    AND CURRENT_ROLE() NOT IN ($ROLE_GOVERNOR, 'ACCOUNTADMIN') 
+WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.PII_COL') = 'PII-DATA' 
+    AND CURRENT_ROLE() NOT IN ('HRZN_DATA_GOVERNOR', 'ACCOUNTADMIN') 
     THEN '**PII TAG MASKED**'
 ELSE VAL
 END;
 
 
 --Apply Masking policy to the tag
-ALTER TAG identifier($TAG_PII_COL) SET MASKING POLICY identifier($POLICY_PII_DATA_MASK);
+ALTER TAG HRZN_DB.TAG_SCHEMA.PII_COL SET MASKING POLICY HRZN_DB.TAG_SCHEMA.PII_DATA_MASK;
 
 
 
@@ -419,9 +386,9 @@ ALTER TAG identifier($TAG_PII_COL) SET MASKING POLICY identifier($POLICY_PII_DAT
 /*************************************************/
 /*************************************************/
 --Lets switch roles to the user and Check if phone is visible
-USE ROLE identifier($ROLE_USER);
+USE ROLE HRZN_DATA_USER;
 SELECT FIRST_NAME, LAST_NAME, STREET_ADDRESS, CITY, STATE, ZIP 
-FROM identifier($TBL_CUSTOMER);
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
 
@@ -433,9 +400,9 @@ FROM identifier($TBL_CUSTOMER);
 /*************************************************/
 /*************************************************/
 --Switch roles back to Governor
-USE ROLE identifier($ROLE_GOVERNOR);
+USE ROLE HRZN_DATA_GOVERNOR;
 SELECT FIRST_NAME, LAST_NAME, STREET_ADDRESS, CITY, STATE, ZIP 
-FROM identifier($TBL_CUSTOMER);
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
 
@@ -453,8 +420,8 @@ Within our Customer table, the users with DATA_USER role should only see Custome
 based in Massachusetts (MA)
 ----------------------------------------------------------------------------------*/
 --We need to unset any existing masking policies on the column
-USE ROLE identifier($ROLE_GOVERNOR);
-ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STATE UNSET TAG identifier($TAG_PII_COL);
+USE ROLE HRZN_DATA_GOVERNOR;
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STATE UNSET TAG HRZN_DB.TAG_SCHEMA.PII_COL;
 
 
 
@@ -465,8 +432,8 @@ ALTER TABLE identifier($TBL_CUSTOMER) MODIFY COLUMN STATE UNSET TAG identifier($
 /* D A T A      U S E R      R O L E */
 /*************************************************/
 /*************************************************/
-USE ROLE identifier($ROLE_USER);
-SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM identifier($TBL_CUSTOMER);
+USE ROLE HRZN_DATA_USER;
+SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 
 
 
@@ -477,12 +444,12 @@ SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPA
 /* D A T A      G O V E R N O R      R O L E */
 /*************************************************/
 /*************************************************/
-USE ROLE identifier($ROLE_GOVERNOR);
+USE ROLE HRZN_DATA_GOVERNOR;
 
 --Let's use a mapping table ROW_POLICY_MAP to store the mapping 
 --between the users and the data that they have access to
 --For our lab, the mapping for the user is in the table ROW_POLICY_MAP
-SELECT * FROM identifier($TBL_ROW_POLICY_MAP); 
+SELECT * FROM HRZN_DB.TAG_SCHEMA.ROW_POLICY_MAP; 
 
 
 /**
@@ -493,13 +460,13 @@ SELECT * FROM identifier($TBL_ROW_POLICY_MAP);
 **/
 
 -- Create Row Access Policy (using suffixed role names in condition)
-CREATE OR REPLACE ROW ACCESS POLICY identifier($POLICY_CUSTOMER_STATE)
+CREATE OR REPLACE ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_STATE_RESTRICTIONS
     AS (STATE STRING) RETURNS BOOLEAN ->
-       CURRENT_ROLE() IN ('ACCOUNTADMIN', $ROLE_ENGINEER, $ROLE_GOVERNOR) -- list of roles that will not be subject to the policy
+       CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_ENGINEER', 'HRZN_DATA_GOVERNOR') -- list of roles that will not be subject to the policy
         OR EXISTS -- this clause references our mapping table from above to handle the row level filtering
             (
             SELECT rp.ROLE
-                FROM identifier($TBL_ROW_POLICY_MAP) rp
+                FROM HRZN_DB.TAG_SCHEMA.ROW_POLICY_MAP rp
             WHERE 1=1
                 AND rp.ROLE = CURRENT_ROLE()
                 AND rp.STATE_VISIBILITY = STATE
@@ -509,8 +476,8 @@ COMMENT = 'Policy to limit rows returned based on mapping table of ROLE and STAT
 
 
  -- let's now apply the Row Access Policy to our State column in the Customer table
-ALTER TABLE identifier($TBL_CUSTOMER)
-    ADD ROW ACCESS POLICY identifier($POLICY_CUSTOMER_STATE) ON (STATE);
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER
+    ADD ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_STATE_RESTRICTIONS ON (STATE);
 
 
 
@@ -521,5 +488,5 @@ ALTER TABLE identifier($TBL_CUSTOMER)
 /*************************************************/
 /*************************************************/
 -- with the policy successfully applied, let's test it using the Test Role
-USE ROLE identifier($ROLE_USER);
-SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM identifier($TBL_CUSTOMER);
+USE ROLE HRZN_DATA_USER;
+SELECT FIRST_NAME, STREET_ADDRESS, STATE, OPTIN, PHONE_NUMBER, EMAIL, JOB, COMPANY FROM HRZN_DB.HRZN_SCH.CUSTOMER;
