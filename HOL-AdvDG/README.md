@@ -69,29 +69,19 @@ Consider a data pipeline following a modern data architecture pattern with three
 -- Bronze tables (CUSTOMER, CUSTOMER_ORDERS) are loaded from S3 during setup
 -- See 0_setup.sql for the COPY INTO statements that load the raw data
 
-INSERT INTO HRZN_DB.HRZN_SCH.CUSTOMER VALUES
-    (1, 'John', 'Doe', '123 Elm St', 'CA', 'San Francisco', '94105', '123-456-7890', 'john.doe@email.com', '111-22-3333', '1985-04-12', 'Engineer', '4111111111111111', 'Acme Inc.', 'Y'),
-    (2, 'Jane', 'Smith', NULL, 'CA', 'Los Angeles', '90001', NULL, 'jane.smith@email.com', NULL, '1990/07/25', 'Manager', '5500000000000004', 'Globex', 'N'),
-    (3, 'Mike', 'Brown', '456 Oak St', 'NV', 'Las Vegas', '89101', '9999999999', 'mike.brown.com', '123-45-6789', 'bad-date', 'Analyst', '4000000000000002', NULL, 'Y'),
-    (4, 'Anna', 'Lee', '789 Pine St', 'WA', 'Seattle', '98101', '206-555-1234', 'anna.lee@email.com', '222-33-4444', '1988-11-05', 'Designer', '340000000000009', 'Innotech', 'Y');
+-- Load data from S3
+COPY INTO HRZN_DB.HRZN_SCH.CUSTOMER
+FROM s3://sfquickstarts/summit_2024_horizon_hol/CustomerDataRaw.csv
+FILE_FORMAT = (TYPE = 'CSV', SKIP_HEADER = 1);
 
-INSERT INTO HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS VALUES
-    ('1', 'O1', 1, 9, 2025, 100, 8.25, 108.25, 'CREDIT_CARD'),
-    ('2', 'O2', 2, 9, 2025, 200, NULL, 200, 'PAYPAL'),
-    ('2', 'O3', 3, 9, 2025, 300, 60, 360, 'BANK_TRANSFER'),
-    ('3', 'O4', NULL, 9, 2025, -50, 5, -45, 'CREDIT_CARD'),
-    ('4', 'O5', 4, 9, 2025, 150, 12, 162, 'PAYPAL'),
-    ('1', 'O6', 5, 9, 2025, 250, 20, 270, 'CREDIT_CARD');
-    ('5', NULL, 5, 9, 2025, 250, 20, 270, 'VENMO');
+COPY INTO HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS
+FROM s3://sfquickstarts/summit_2024_horizon_hol/CustomerOrders.csv
+FILE_FORMAT = (TYPE = 'CSV', SKIP_HEADER = 1);
 ```
 
 #### **Silver Layer (clean orders only)**
 
 ```sql
--- Define Silver layer table variables
-SET TBL_SILVER_CUSTOMER = 'HRZN_DB.HRZN_SCH' || '.SILVER_CUSTOMER';
-SET TBL_SILVER_CUSTOMER_ORDERS = 'HRZN_DB.HRZN_SCH' || '.SILVER_CUSTOMER_ORDERS';
-
 -- Create Silver Customer Orders table
 CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS AS
 SELECT *, 
@@ -99,22 +89,18 @@ SELECT *,
 FROM HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS;
 
 -- Create Silver Customer table
-CREATE OR REPLACE TABLE identifier($TBL_SILVER_CUSTOMER) AS
+CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.SILVER_CUSTOMER AS
 SELECT * EXCLUDE birthdate,
     TO_DATE(birthdate, 'MM/DD/YY') AS birthdate,
     DATEDIFF('year', TO_DATE(birthdate, 'MM/DD/YY'), CURRENT_DATE()) AS age
 FROM HRZN_DB.HRZN_SCH.CUSTOMER;
 ```
 
-#### **Gold Layer (Aggregated by Customer State and Payment Type)**
+#### **Gold Layer (Aggregated Customer orders)**
 
 ```sql
--- Define Gold layer table variable
-SET TBL_GOLD_CUSTOMER_ORDER_SUMMARY = 'HRZN_DB.HRZN_SCH' || '.GOLD_CUSTOMER_ORDER_SUMMARY';
-
--- Create Gold Customer Order Summary joining Silver tables
 CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.GOLD_CUSTOMER_ORDER_SUMMARY AS
-SELECT
+SELECT 
     c.ID,
     c.FIRST_NAME,
     c.LAST_NAME,
@@ -125,7 +111,7 @@ SELECT
     SUM(o.ORDER_AMOUNT) AS TOTAL_AMOUNT,
     SUM(o.ORDER_TAX) AS TOTAL_TAX,
     SUM(o.ORDER_TOTAL) AS TOTAL_REVENUE
-FROM identifier($TBL_SILVER_CUSTOMER) c
+FROM HRZN_DB.HRZN_SCH.SILVER_CUSTOMER c
 LEFT JOIN HRZN_DB.HRZN_SCH.SILVER_CUSTOMER_ORDERS o
     ON c.ID = o.CUSTOMER_ID
 GROUP BY c.ID, c.FIRST_NAME, c.LAST_NAME, c.STATE, c.CITY, c.COMPANY;
