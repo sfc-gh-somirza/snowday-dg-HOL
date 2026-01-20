@@ -36,7 +36,7 @@ Now that you have the introduction to Horizon and our personas, lets get started
 
 ## **Setup**
 
-All the scripts for this lab are available in the HOL-AdvDG folder.  
+All the scripts for this lab are available in the HOL-AdvDG folder. Clone this repo into your workspace.  
 Let's get started\! First we will run the script **0\_setup.sql**  
 1\. Download 0\_setup and upload it to Snowflake.  
 2\. Run the whole worksheet.
