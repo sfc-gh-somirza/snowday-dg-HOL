@@ -935,7 +935,7 @@ Now, let's add table synonyms and a primary key for better natural language unde
 1. In the customer\_loyalty\_metrics\_v table, copy and paste the following synonyms into the Synonyms box:
 
 ```
-Customers, customer_data, loyalty, customer_metrics, customer_info
+Customers, customer_data, loyalty, customer_metrics, customer_info
 ```
 
 2.   
@@ -943,7 +943,7 @@ Now, let's add table synonyms and a primary key for better natural language unde
 3. For the orders\_v table, copy and paste the following synonyms:
 
 ```
-Orders, transactions, sales, purchases, order_data
+Orders, transactions, sales, purchases, order_data
 ```
 
 4.   
@@ -980,7 +980,7 @@ With our semantic model and relationships active, let's demonstrate sophisticate
 2. Enter the following prompt:
 
 ```
-Show customer groups by marital status and gender, with their total spending per customer and average order value. Break this down by city and region, and also include the year of the orders so I can see when the spending occurred. In addition to the yearly breakdown, calculate each group’s total lifetime spending and their average order value across all years. Rank the groups to highlight which demographics spend the most per year and which spend the most overall.
+Show customer groups by marital status and gender, with their total spending per customer and average order value. Break this down by city and region, and also include the year of the orders so I can see when the spending occurred. In addition to the yearly breakdown, calculate each group’s total lifetime spending and their average order value across all years. Rank the groups to highlight which demographics spend the most per year and which spend the most overall.
 ```
 
 ![assets/vignette-3/cortex-analyst-prompt1.png][image26]
@@ -995,7 +995,7 @@ Having seen basic segmentation, let's now demonstrate enterprise-grade SQL that 
 2. Enter the following prompt:
 
 ```
-I want to understand our customer base better. Can you group customers by their total spending (high, medium, low spenders), then show me their ordering patterns differ? Also compare how our franchise locations perform versus company-owned stores for each spending group.
+I want to understand our customer base better. Can you group customers by their total spending (high, medium, low spenders), then show me their ordering patterns differ? Also compare how our franchise locations perform versus company-owned stores for each spending group.
 ```
 
 ![assets/vignette-3/cortex-analyst-prompt2.png][image27]
