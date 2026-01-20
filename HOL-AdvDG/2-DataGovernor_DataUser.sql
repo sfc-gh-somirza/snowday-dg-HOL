@@ -130,10 +130,9 @@ CALL SYSTEM$CLASSIFY('HRZN_DB.HRZN_SCH.CUSTOMER', {'auto_tag': true});
 
 -- now let's view the new Tags that Snowflake applied automatically to the CUSTOMER table via Data Classification
 SELECT TAG_DATABASE, TAG_SCHEMA, OBJECT_NAME, COLUMN_NAME, TAG_NAME, TAG_VALUE
-FROM TABLE(
-  identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
-    'HRZN_DB.HRZN_SCH.CUSTOMER',
-    'table'
+FROM TABLE(HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS(
+  'HRZN_DB.HRZN_SCH.CUSTOMER', 
+  'table'
 ));
 
 
@@ -145,7 +144,7 @@ CALL SYSTEM$CLASSIFY_SCHEMA('HRZN_DB.HRZN_SCH', {'auto_tag': true});
 
 
 -- once again, let's view the Tags applied within the Schema
-SELECT * FROM TABLE(identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')('HRZN_DB.HRZN_SCH.CUSTOMER','table'));
+SELECT * FROM TABLE(HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS( 'HRZN_DB.HRZN_SCH.CUSTOMER', 'TABLE' ));
 
 
 
@@ -179,8 +178,10 @@ SELECT CREDITCARD!LIST();
 SELECT CREDITCARD FROM HRZN_DB.HRZN_SCH.CUSTOMER WHERE CREDITCARD REGEXP '^3[4-7][0-9]{13}$';
 
 --Now, classify the data with custom classifier
-CALL SYSTEM$CLASSIFY('HRZN_DB.HRZN_SCH.CUSTOMER', {'auto_tag': true, 'custom_classifiers': [HRZN_DB.CLASSIFIERS.CREDITCARD]});
-
+CALL SYSTEM$CLASSIFY(
+  'HRZN_DB.HRZN_SCH.CUSTOMER',
+  {'auto_tag': true, 'custom_classifiers': ['HRZN_DB.CLASSIFIERS.CREDITCARD']}
+);
 --This statement shows if a column is classified as a particular tag
 SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category', 'HRZN_DB.HRZN_SCH.CUSTOMER' || '.CREDITCARD', 'column');
 

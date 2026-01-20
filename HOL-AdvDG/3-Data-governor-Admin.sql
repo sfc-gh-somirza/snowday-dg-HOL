@@ -155,7 +155,7 @@ FROM
         outer => true
       ) directSources
     union
--- 2
+// 2
     select
       baseSources.value: "objectId" as source_object_id,
       baseSources.value: "objectName"::varchar as source_object_name,
@@ -178,7 +178,7 @@ FROM
       ) baseSources
 ) col_lin
    WHERE
-       (SOURCE_OBJECT_NAME = 'HRZN_DB.HRZN_SCH.CUSTOMER' OR TARGET_OBJECT_NAME = 'HRZN_DB.HRZN_SCH.CUSTOMER')
+       (SOURCE_OBJECT_NAME = 'HRZN_DB.HRZN_SCH.CUSTOMER' OR TARGET_OBJECT_NAME='HRZN_DB.HRZN_SCH.CUSTOMER')
     AND
         (SOURCE_COLUMN_NAME IN (
                 SELECT
@@ -188,7 +188,7 @@ FROM
                     SELECT
                         *
                     FROM TABLE(
-                      identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+                      HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS(
                         'HRZN_DB.HRZN_SCH.CUSTOMER',
                         'table'
                       )
@@ -205,7 +205,7 @@ FROM
                     SELECT
                         *
                     FROM TABLE(
-                      identifier('HRZN_DB' || '.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS')(
+                      HRZN_DB.INFORMATION_SCHEMA.TAG_REFERENCES_ALL_COLUMNS(
                         'HRZN_DB.HRZN_SCH.CUSTOMER',
                         'table'
                       )
