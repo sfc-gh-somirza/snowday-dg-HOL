@@ -16,24 +16,6 @@ Date(yyyy-mm-dd)    Author              Comments
 Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
 
-/*----------------------------------------------------------------------------------
- V A R I A B L E S
- 
- This teardown script will clean up all objects for the current user.
-----------------------------------------------------------------------------------*/
-
-
--- Define role names with user suffix
-
--- Define warehouse name
-
--- Define database and schema names
-
--- Define fully qualified schema paths
-
--- Define table names (fully qualified)
-
-
 /********************/
 -- T E A R   D O W N
 /********************/

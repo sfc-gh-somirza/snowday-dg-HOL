@@ -17,28 +17,6 @@ Date(yyyy-mm-dd)    Author              Comments
 Apr 17, 2024        Ravi Kumar           Initial Lab
 ***************************************************************************************************/
 
-/*----------------------------------------------------------------------------------
- U S E R   S U F F I X   V A R I A B L E S
- 
- All objects in this lab are suffixed with the current user's name to allow
- multiple users to run the lab concurrently without naming conflicts.
-----------------------------------------------------------------------------------*/
-
--- Set the user suffix (must match 0_setup.sql)
-
--- Define role names with user suffix
-
--- Define warehouse name with user suffix
-
--- Define database and schema names with user suffix
-
--- Define fully qualified schema path
-
--- Define table names (fully qualified)
-
--- Define pattern for ILIKE searches (matches user's objects)
-
-
 /*************************************************/
 /*************************************************/
 /* D A T A      G O V E R N O R   A D M I N      R O L E */
