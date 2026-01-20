@@ -1,1 +1,1 @@
-Follow along with Vignettes 1-3 in [Quickstart: Zero to Snowflake](https://www.snowflake.com/en/developers/guides/zero-to-snowflake/#overview).
+Follow along with Vignettes 1-3 in [Quickstart: Zero to Snowflake](https://www.snowflake.com/en/developers/guides/zero-to-snowflake/#overview), [Code Repo](https://github.com/Snowflake-Labs/sfguide-getting-started-from-zero-to-snowflake/tree/main).
