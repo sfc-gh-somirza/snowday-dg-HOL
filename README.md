@@ -10,9 +10,8 @@ Ensure to chose the right region & distribution:
 Check your email and create a unique username and password.
 ![image](assets/email-p1.png)
 
-
-```sql
 Step 2: Setup a github integration in your trial account.
+```sql
 CREATE OR REPLACE API INTEGRATION my_git_api_integration
   API_PROVIDER = git_https_api
   API_ALLOWED_PREFIXES = ('https://github.com/')
